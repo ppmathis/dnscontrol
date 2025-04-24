@@ -3,6 +3,7 @@ package bunnydns
 import (
 	"encoding/json"
 	"errors"
+	"sync"
 
 	"github.com/StackExchange/dnscontrol/v4/models"
 	"github.com/StackExchange/dnscontrol/v4/providers"
@@ -13,7 +14,7 @@ var features = providers.DocumentationNotes{
 	// See providers/capabilities.go for the entire list of capabilities.
 	providers.CanAutoDNSSEC:          providers.Can(),
 	providers.CanGetZones:            providers.Can(),
-	providers.CanConcur:              providers.Unimplemented(),
+	providers.CanConcur:              providers.Can(),
 	providers.CanUseAlias:            providers.Can("Bunny flattens CNAME records into A/AAAA records dynamically"),
 	providers.CanUseCAA:              providers.Can(),
 	providers.CanUseDHCID:            providers.Cannot(),
@@ -32,8 +33,9 @@ var features = providers.DocumentationNotes{
 }
 
 type bunnydnsProvider struct {
-	apiKey string
-	zones  map[string]*zone
+	apiKey  string
+	zones   map[string]*zone
+	zonesMu sync.Mutex
 }
 
 func init() {

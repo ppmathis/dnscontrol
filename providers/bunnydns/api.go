@@ -79,6 +79,9 @@ func (b *bunnydnsProvider) getImplicitRecordConfigs(zone *zone) (models.Records,
 }
 
 func (b *bunnydnsProvider) findZoneByDomain(domain string) (*zone, error) {
+	b.zonesMu.Lock()
+	defer b.zonesMu.Unlock()
+
 	if b.zones == nil {
 		zones, err := b.getAllZones()
 		if err != nil {
@@ -127,6 +130,9 @@ func (b *bunnydnsProvider) getAllZones() ([]*zone, error) {
 }
 
 func (b *bunnydnsProvider) createZone(domain string) (*zone, error) {
+	b.zonesMu.Lock()
+	defer b.zonesMu.Unlock()
+
 	zone := &zone{}
 	body := map[string]string{"domain": domain}
 	err := b.request("POST", "/dnszone", nil, body, &zone, []int{http.StatusCreated})
