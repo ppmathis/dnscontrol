@@ -214,6 +214,7 @@
 
 * [Code Style Guide](advanced-features/styleguide-code.md)
 * [Documentation Style Guide](advanced-features/styleguide-doc.md)
+* [Cookbook](developer-info/cookbook.md)
 * [DNSControl is an opinionated system](advanced-features/opinions.md)
 * [GitHub actions](developer-info/github-actions.md)
 * [Writing new DNS providers](advanced-features/writing-providers.md)

@@ -60,6 +60,7 @@ func (rc *RecordConfig) PopulateFromStringFunc(rtype, contents, origin string, t
 	}
 
 	switch rc.Type = rtype; rtype { // #rtype_variations
+
 	case "A":
 		ip, err := netip.ParseAddr(contents)
 		if err != nil || !ip.Is4() {
@@ -92,6 +93,8 @@ func (rc *RecordConfig) PopulateFromStringFunc(rtype, contents, origin string, t
 		return rc.SetTargetNAPTRString(contents)
 	case "OPENPGPKEY":
 		return rc.SetTarget(contents)
+	case "RP":
+		return newRecordConfigHelperRC(rc, rtype, contents, origin)
 	case "SMIMEA":
 		return rc.SetTargetSMIMEAString(contents)
 	case "SOA":
@@ -128,10 +131,9 @@ func (rc *RecordConfig) PopulateFromStringFunc(rtype, contents, origin string, t
 		return rc.SetTargetSVCBString(origin, contents)
 	case "TLSA":
 		return rc.SetTargetTLSAString(contents)
-	default:
-		// return fmt.Errorf("unknown rtype (%s) when parsing (%s) domain=(%s)", rtype, contents, origin)
-		return MakeUnknown(rc, rtype, contents, origin)
 	}
+	// return fmt.Errorf("unknown rtype (%s) when parsing (%s) domain=(%s)", rtype, contents, origin)
+	return MakeUnknown(rc, rtype, contents, origin)
 }
 
 // PopulateFromString populates a RecordConfig given a type and string.  Many
@@ -168,6 +170,9 @@ func (rc *RecordConfig) PopulateFromString(rtype, contents, origin string) error
 	if rc.Type != "" && rc.Type != rtype {
 		panic(fmt.Errorf("assertion failed: rtype already set (%s) (%s)", rtype, rc.Type))
 	}
+
+	// TODO(tlim): If this is a modern type, use NewRecordConfigForPopulateFromString.
+
 	switch rc.Type = rtype; rtype { // #rtype_variations
 	case "A":
 		ip, err := netip.ParseAddr(contents)

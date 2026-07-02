@@ -6,6 +6,7 @@ import (
 	"log"
 	"strings"
 
+	dnsv2 "codeberg.org/miekg/dns"
 	"github.com/DNSControl/dnscontrol/v4/pkg/txtutil"
 	"github.com/jinzhu/copier"
 	dnsv1 "github.com/miekg/dns"
@@ -16,33 +17,48 @@ import (
 // RecordConfig stores a DNS record whether it was created from data downloaded from
 // a provider's API ("actual") or from user input in dndsconfig.js ("desired").
 type RecordConfig struct {
+
 	// Type is the DNS record type (rtype), all caps, "A", "MX", etc.
 	Type string `json:"type"`
+
+	// TypeNum is the assigned number of the record's type. 1 for A, 5 for CNAME, etc. See dnsv2.TypeToString and dnsv2.StringToType.
+	// NB(tlim): Not currently used. Placeholder for future feature.
+	TypeNum uint16 `json:"typenum,omitempty"`
+
+	// rdata is the fields of the record.
+	rdata dnsv2.RDATA
+
+	// ComparableV3 is an opaque string that can be used to compare two
+	// RecordConfigs for equality. Typically this is the Zonefile line
+	// minus the label and TTL.
+	// The V3 distingues itself from .Comparable, which it will eventually replace.
+	// NB(tlim): Not currently used. Placeholder for future feature.
+	ComparableV3 string `json:"comparablev3,omitempty"`
 
 	// TTL is the DNS record's TTL in seconds. 0 means provider default.
 	TTL uint32 `json:"ttl,omitempty"`
 
 	// Name is the shortname i.e. the FQDN without the parent domains's suffix.
 	// It should never be "".  Record at the apex (naked domain) are represented by "@".
-	NameRaw     string `json:"name_raw,omitempty"`     // .Name as the user entered it in dnsconfig.js
+	//NameRaw     string `json:"name_raw,omitempty"`     // .Name as the user entered it in dnsconfig.js
 	Name        string `json:"name"`                   // The short name, PunyCode. See above.
 	NameUnicode string `json:"name_unicode,omitempty"` // .Name as Unicode (downcased, then convertedot Unicode).
 
 	// This is the FQDN version of .Name. It should never have a trailing ".".
-	NameFQDNRaw     string `json:"-"` // .NameFQDN as the user entered it in dnsconfig.js (downcased).
+	//NameFQDNRaw     string `json:"-"` // .NameFQDN as the user entered it in dnsconfig.js (downcased).
 	NameFQDN        string `json:"-"` // Must end with ".$origin".
 	NameFQDNUnicode string `json:"-"` // .NameFQDN as Unicode (downcased, then convertedot Unicode).
 
 	// F is the binary representation of the record's data usually a dns.XYZ struct.
 	// Always stored in Punycode, not Unicode. Downcased where applicable.
-	F any `json:"fields,omitempty"`
+	// F any `json:"fields,omitempty"`
 	//FieldsAsRaw     []string // Fields as received from the dnsconfig.js file, converted to strings.
 	//FieldsAsUnicode []string // fields with IDN fields converted to Unicode for display purposes.
 
 	// Comparable is an opaque string that can be used to compare two
 	// RecordConfigs for equality. Typically this is the Zonefile line minus the
 	// label and TTL.
-	Comparable string `json:"comparable,omitempty"` // Cache of ToComparableNoTTL()
+	//Comparable string `json:"comparable,omitempty"` // Cache of ToComparableNoTTL()
 
 	// ZonefilePartial is the partial zonefile line for this record, excluding
 	// the label and TTL.  If this is not an official RR type, we invent the format.
@@ -124,13 +140,16 @@ type RecordConfig struct {
 
 // MarshalJSON marshals RecordConfig.
 func (rc *RecordConfig) MarshalJSON() ([]byte, error) {
+	//fmt.Printf("DEBUG: MARSHALING %v\n", rc.Name)
 	recj := &struct {
 		RecordConfig
-		Target string `json:"target"`
+		RDATA  dnsv2.RDATA `json:"rdata,omitempty"`
+		Target string      `json:"target,omitempty"`
 	}{
 		RecordConfig: *rc,
 		Target:       rc.GetTargetField(),
 	}
+	recj.RDATA = rc.GetRDATA()
 	j, err := json.Marshal(*recj)
 	if err != nil {
 		return nil, err
@@ -141,7 +160,7 @@ func (rc *RecordConfig) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON unmarshals RecordConfig.
 func (rc *RecordConfig) UnmarshalJSON(b []byte) error {
 	recj := &struct {
-		Target string `json:"target"`
+		Target string `json:"target,omitempty"`
 
 		Type      string            `json:"type"` // All caps rtype name.
 		Name      string            `json:"name"` // The short name. See above.
@@ -274,6 +293,10 @@ func (rc *RecordConfig) SetLabel(short, origin string) {
 		panic(fmt.Errorf("origin (%s) is not supposed to end with a dot", origin))
 	}
 	if strings.HasSuffix(short, ".") {
+		if strings.HasSuffix(short, origin+".") {
+			fmt.Printf("DEBUG: ******** SetLabel on FQDNdot: %q origin=%q\n", short, origin)
+
+		}
 		if short != "**current-domain**" {
 			panic(fmt.Errorf("short (%s) is not supposed to end with a dot", short))
 		}
@@ -291,27 +314,6 @@ func (rc *RecordConfig) SetLabel(short, origin string) {
 		rc.Name = short
 		rc.NameFQDN = dnsutilv1.AddOrigin(short, origin)
 	}
-}
-
-// SetLabelFromFQDN sets the .Name/.NameFQDN fields given a FQDN and origin.
-// fqdn may have a trailing "." but it is not required.
-// origin may not have a trailing dot.
-func (rc *RecordConfig) SetLabelFromFQDN(fqdn, origin string) {
-	// Assertions that make sure the function is being used correctly:
-	if strings.HasSuffix(origin, ".") {
-		panic(fmt.Errorf("origin (%s) is not supposed to end with a dot", origin))
-	}
-	if strings.HasSuffix(fqdn, "..") {
-		panic(fmt.Errorf("fqdn (%s) is not supposed to end with double dots", origin))
-	}
-
-	// Trim off a trailing dot.
-	fqdn = strings.TrimSuffix(fqdn, ".")
-
-	fqdn = strings.ToLower(fqdn)
-	origin = strings.ToLower(origin)
-	rc.Name = dnsutilv1.TrimDomainName(fqdn, origin)
-	rc.NameFQDN = fqdn
 }
 
 // GetLabel returns the shortname of the label associated with this RecordConfig.
@@ -334,8 +336,8 @@ func (rc *RecordConfig) GetLabelFQDN() string {
 // metafields.  Provider-specific metafields like CF_PROXY are not the same as
 // pseudo-records like ANAME or R53_ALIAS.
 func (rc *RecordConfig) ToComparableNoTTL() string {
-	if rc.IsModernType() {
-		return rc.Comparable
+	if rc.ComparableV3 != "" {
+		return rc.ComparableV3
 	}
 
 	switch rc.Type {
@@ -352,7 +354,9 @@ func (rc *RecordConfig) ToComparableNoTTL() string {
 	case "UNKNOWN":
 		return fmt.Sprintf("rtype=%s rdata=%s", rc.UnknownTypeName, rc.target)
 	case "HTTPS", "SVCB":
+		//panic("unused ToComparableNoTTL for SVCB/HTTPS. Should be using .ComparableV3 instead")
 		return rc.targetCombinedSVCBRaw()
+
 	}
 	return rc.GetTargetCombined()
 }
@@ -363,18 +367,6 @@ func (rc *RecordConfig) ToRR() dnsv1.RR {
 	rdtype, ok := dnsv1.StringToType[rc.Type]
 	if !ok {
 		log.Fatalf("No such DNS type as (%#v)\n", rc.Type)
-	}
-
-	// If this IsModernType, the dns.RR is already in rc.F.
-	if rr, ok := rc.F.(dnsv1.RR); ok {
-		rr.Header().Name = rc.NameFQDN + "."
-		rr.Header().Rrtype = rdtype
-		rr.Header().Class = dnsv1.ClassINET
-		rr.Header().Ttl = rc.TTL
-		if rc.TTL == 0 {
-			rr.Header().Ttl = DefaultTTL
-		}
-		return rr
 	}
 
 	// Magically create an RR of the correct type.
@@ -412,7 +404,10 @@ func (rc *RecordConfig) ToRR() dnsv1.RR {
 	case dnsv1.TypeDNAME:
 		rr.(*dnsv1.DNAME).Target = rc.GetTargetField()
 	case dnsv1.TypeDS:
-		panic("DS should have been handled as modern type")
+		rr.(*dnsv1.DS).KeyTag = rc.DsKeyTag
+		rr.(*dnsv1.DS).Algorithm = rc.DsAlgorithm
+		rr.(*dnsv1.DS).DigestType = rc.DsDigestType
+		rr.(*dnsv1.DS).Digest = rc.DsDigest
 	case dnsv1.TypeDNSKEY:
 		rr.(*dnsv1.DNSKEY).Flags = rc.DnskeyFlags
 		rr.(*dnsv1.DNSKEY).Protocol = rc.DnskeyProtocol
@@ -540,41 +535,11 @@ func (rc *RecordConfig) Key() RecordKey {
 	return RecordKey{rc.NameFQDN, t}
 }
 
-// GetSVCBValue returns the SVCB Key/Values as a list of Key/Values.
-func (rc *RecordConfig) GetSVCBValue() []dnsv1.SVCBKeyValue {
-	if !strings.Contains(rc.SvcParams, "IGNORE+DNSCONTROL") {
-		rc.SvcParams = strings.ReplaceAll(rc.SvcParams, "ech=IGNORE", "ech=IGNORE+DNSCONTROL+++")
-	}
-
-	record, err := dnsv1.NewRR(fmt.Sprintf("%s %s %d %s %s", rc.NameFQDN, rc.Type, rc.SvcPriority, rc.target, rc.SvcParams))
-	if err != nil {
-		log.Fatalf("could not parse SVCB record: %s", err)
-	}
-	switch r := record.(type) {
-	case *dnsv1.HTTPS:
-		return r.Value
-	case *dnsv1.SVCB:
-		return r.Value
-	}
-	return nil
-}
-
-// IsModernType returns true if this RecordConfig is a record type implemented
-// in the new ("Modern") style (i.e. uses the RecordConfig .F field to store
-// the rdata of the record).
-//
-// Since this relies on .F, it must be used only after the RecordConfig
-// has been populated. Otherwise, use rtypecontrol.IsModernType(recordTypeName),
-// which takes the type name as input.
-//
-// NOTE: Do not confuse this with rtypeinfo.IsModernType() which provides
-// similar functionality.  This function is used to have a RecordConfig reveal
-// if it uses a modern type.  rtypeinfo.IsModernType() takes the rtype name as
-// a string argument.
-//
-// FUTURE(tlim): Once all record types have been migrated to use ".F", this function can be removed.
-func (rc *RecordConfig) IsModernType() bool {
-	return rc.F != nil
+func (rc *RecordConfig) IsTTLSignificant() bool {
+	// "private types" don't really have a useful TTL.
+	// There may be better ways to determine this.  Right now
+	// this only affects checkRecordSetHasMultipleTTLs().
+	return rc.TypeNum < 65280
 }
 
 // Records is a list of *RecordConfig.
@@ -641,28 +606,28 @@ func PostProcessRecords(recs []*RecordConfig) {
 }
 
 // Downcase converts all labels and targets to lowercase in a list of RecordConfig.
+// NB(tlim): This should go away once all rtypes are modernized. The Make*()
+// functions should do all downcasing, etc.
 func Downcase(recs []*RecordConfig) {
 	for _, r := range recs {
-		if r.IsModernType() {
-			continue
-		}
-
 		r.Name = strings.ToLower(r.Name)
 		r.NameFQDN = strings.ToLower(r.NameFQDN)
 		switch r.Type { // #rtype_variations
-		case "AKAMAICDN", "AKAMAITLC", "ALIAS", "AAAA", "ANAME", "CNAME", "DNAME", "DS", "DNSKEY", "MX", "NS", "NAPTR", "SMIMEA", "PTR", "SRV", "TLSA", "AZURE_ALIAS":
+		case "AKAMAICDN", "AKAMAITLC", "ALIAS", "AAAA", "ANAME", "CNAME", "DNAME", "DS", "DNSKEY", "MX", "NS", "NAPTR", "SMIMEA", "PTR", "SRV", "TLSA":
 			// Target is case insensitive. Downcase it.
 			r.target = strings.ToLower(r.target)
 			// BUGFIX(tlim): isn't ALIAS in the wrong case statement?
 		case "A", "CAA", "CLOUDFLAREAPI_SINGLE_REDIRECT", "CF_REDIRECT", "CF_TEMP_REDIRECT", "CF_WORKER_ROUTE", "DHCID", "IMPORT_TRANSFORM", "LOC", "OPENPGPKEY", "SSHFP", "TXT", "ADGUARDHOME_A_PASSTHROUGH", "ADGUARDHOME_AAAA_PASSTHROUGH":
 			// Do nothing. (IP address or case sensitive target)
 		case "SOA":
-			if r.target != "DEFAULT_NOT_SET." {
-				r.target = strings.ToLower(r.target) // .target stores the Ns
-			}
-			if r.SoaMbox != "DEFAULT_NOT_SET." {
-				r.SoaMbox = strings.ToLower(r.SoaMbox)
-			}
+			//if r.target != "DEFAULT_NOT_SET." {
+			r.target = strings.ToLower(r.target) // .target stores the Ns
+			//}
+			//if r.SoaMbox != "DEFAULT_NOT_SET." {
+			r.SoaMbox = strings.ToLower(r.SoaMbox)
+			//}
+		case "AZURE_ALIAS":
+			// do nothing.
 		default:
 			// TODO: we'd like to panic here, but custom record types complicate things.
 		}
@@ -674,11 +639,6 @@ func CanonicalizeTargets(recs []*RecordConfig, origin string) {
 	originFQDN := origin + "."
 
 	for _, r := range recs {
-
-		if r.IsModernType() {
-			continue
-		}
-
 		switch r.Type { // #rtype_variations
 		case "ALIAS", "ANAME", "CNAME", "DNAME", "DS", "DNSKEY", "MX", "NS", "NAPTR", "PTR", "SRV":
 			// Target is a hostname that might be a shortname. Turn it into a FQDN.
@@ -686,10 +646,10 @@ func CanonicalizeTargets(recs []*RecordConfig, origin string) {
 		case "A", "AKAMAICDN", "AKAMAITLC", "CAA", "DHCID", "CLOUDFLAREAPI_SINGLE_REDIRECT", "CF_REDIRECT", "CF_TEMP_REDIRECT", "CF_WORKER_ROUTE", "HTTPS", "IMPORT_TRANSFORM", "LOC", "OPENPGPKEY", "SMIMEA", "SSHFP", "SVCB", "TLSA", "TXT", "ADGUARDHOME_A_PASSTHROUGH", "ADGUARDHOME_AAAA_PASSTHROUGH":
 			// Do nothing.
 		case "SOA":
-			if r.target != "DEFAULT_NOT_SET." {
+			if r.target != "default_not_set." {
 				r.target = dnsutilv1.AddOrigin(r.target, originFQDN) // .target stores the Ns
 			}
-			if r.SoaMbox != "DEFAULT_NOT_SET." {
+			if r.SoaMbox != "default_not_set." {
 				r.SoaMbox = dnsutilv1.AddOrigin(r.SoaMbox, originFQDN)
 			}
 		default:

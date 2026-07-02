@@ -21,6 +21,8 @@ func (rc *RecordConfig) SetTargetDS(keytag uint16, algorithm, digesttype uint8, 
 		panic("assertion failed: SetTargetDS called when .Type is not DS")
 	}
 
+	rc.FixUp("") // Hack. Populates .RDATA and .TypeNum if needed.
+
 	return nil
 }
 

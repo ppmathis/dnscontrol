@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	dnsutilv2 "codeberg.org/miekg/dns/dnsutil"
 	"github.com/DNSControl/dnscontrol/v4/models"
 	"github.com/fatih/color"
 	"github.com/kylelemons/godebug/diff"
@@ -63,6 +64,22 @@ func makeRec(label, rtype, content string) *models.RecordConfig {
 	if err := r.PopulateFromString(rtype, content, origin); err != nil {
 		panic(err)
 	}
+
+	// Hack to set .RDATA without importing miekg/dns in pkg/rtypecontrol/fixlegacy.go
+	tn, err := dnsutilv2.StringToType(rtype)
+	if err != nil {
+		panic(fmt.Sprintf("BUG: HackFixRecord: %s IN %s %v", r.Name, r.Type, r))
+	}
+	r.TypeNum = tn
+	rrv2, err := models.MyNewData(tn, content, origin+".")
+	if err != nil {
+		panic(fmt.Sprintf("could not parse: %s IN %s %s: %s", r.Name, rtype, content, err))
+	}
+	//fmt.Printf("DEBUG: makeRec should be pointer: %T\n", rrv2)
+	r.SetRDATA(rrv2)
+	r.ComparableV3 = r.GetRDATA().String()
+	// End of hack
+
 	return &r
 }
 

@@ -104,6 +104,9 @@ func NewCompareConfig(origin string, existing, desired models.Records, compFn Co
 		keyMap:   map[models.RecordKey]bool{},
 	}
 	cc.addRecords(existing, true) // Must be called first so that CNAME manipulations happen in the correct order.
+	models.SVCBHydrateDesiredEchIgnore(existing, desired)
+	// It is a layering violation to post-process SVCB records here but I can't
+	// find a better place to do it.
 	cc.addRecords(desired, false)
 	cc.verifyCNAMEAssertions()
 	sort.Slice(cc.ldata, func(i, j int) bool {
@@ -170,8 +173,10 @@ func (cc *CompareConfig) verifyCNAMEAssertions() {
 // Generate a string that can be used to compare this record to others
 // for equality.
 func mkCompareBlobs(rc *models.RecordConfig, f func(*models.RecordConfig) string) (string, string) {
-	// Start with the comparable string
-	comp := rc.ToComparableNoTTL()
+	comp := rc.ComparableV3
+	if comp == "" {
+		panic(fmt.Sprintf("mkCompareBlobs: record %s IN %s %s has empty ComparableV3", rc.NameFQDN, rc.Type, rc))
+	}
 
 	// If the custom function exists, add its output
 	if f != nil {

@@ -2,7 +2,6 @@ package diff2
 
 import (
 	"fmt"
-	"regexp"
 	"sort"
 	"strings"
 
@@ -232,18 +231,20 @@ func humanDiff(a, b targetConfig) string {
 	// FUTURE(tlim): Records like MX and SRV should have more clever output.
 	// For example if only the MX priority changes, show just that.
 
+	// FUTURE(tlim): If the data but NOT the TTLs are different, omit the TTLs.
+
 	if a.comparableNoTTL != b.comparableNoTTL {
 		// The recorddata is different:
-		return fmt.Sprintf("(%s) -> (%s)", a.comparableFull, b.comparableFull)
+		//return fmt.Sprintf("(%s) -> (%s)", a.comparableFull, b.comparableFull)
+		return fmt.Sprintf("(%s ttl=%d) -> (%s ttl=%d)", a.rec.String(), a.rec.TTL, b.rec.String(), b.rec.TTL)
 	}
 
 	// Just the TTLs are different:
 	return fmt.Sprintf("ttl=(%d->%d) %s",
 		a.rec.TTL, b.rec.TTL,
-		a.comparableNoTTL)
+		//a.comparableNoTTL)
+		a.rec.String())
 }
-
-var echRe = regexp.MustCompile(`ech="?([\w+/=]+)"?`)
 
 // diffTargets is the real workhorse of the diff2 system.  All the setup has been complete,
 // now we can find the differences between two zones.
@@ -253,30 +254,6 @@ func diffTargets(existing, desired []targetConfig) ChangeList {
 	// Nothing to do?
 	if len(existing) == 0 && len(desired) == 0 {
 		return nil
-	}
-
-	echs := make(map[string]string)
-	for _, v := range existing {
-		matches := echRe.FindStringSubmatch(v.rec.SvcParams)
-		if len(matches) == 2 {
-			echs[v.rec.NameFQDN] = matches[1]
-		}
-	}
-	for i, v := range desired {
-		if strings.Contains(v.rec.SvcParams, "ech=IGNORE") {
-			var unquoted, quoted string
-			if _, ok := echs[v.rec.NameFQDN]; ok {
-				unquoted = fmt.Sprintf("ech=%s", echs[v.rec.NameFQDN])
-				quoted = fmt.Sprintf("ech=%s", echs[v.rec.NameFQDN])
-			} else {
-				unquoted = ""
-				quoted = ""
-			}
-			v.rec.SvcParams = echRe.ReplaceAllString(v.rec.SvcParams, unquoted)
-			v.comparableFull = echRe.ReplaceAllString(v.comparableFull, quoted)
-			v.comparableNoTTL = echRe.ReplaceAllString(v.comparableNoTTL, quoted)
-		}
-		desired[i] = v
 	}
 
 	var instructions ChangeList
@@ -300,7 +277,6 @@ func diffTargets(existing, desired []targetConfig) ChangeList {
 	for i := range mi {
 		er := existing[i].rec
 		dr := desired[i].rec
-
 		m := color.YellowString("± MODIFY %s %s %s", dr.NameFQDN, dr.Type, humanDiff(existing[i], desired[i]))
 
 		mkc := mkChange(dr.NameFQDN, dr.Type, []string{m}, models.Records{er}, models.Records{dr})

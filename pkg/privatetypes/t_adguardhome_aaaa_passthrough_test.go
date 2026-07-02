@@ -1,0 +1,24 @@
+package privatetypes
+
+import (
+	"testing"
+
+	dnsv2 "codeberg.org/miekg/dns"
+	privatetypesrdata "github.com/DNSControl/dnscontrol/v4/pkg/privatetypes/rdata"
+)
+
+func TestAdguardhomeAaaaPassthrough(t *testing.T) {
+	y := &ADGUARDHOMEAAAAPASSTHROUGH{
+		Hdr: dnsv2.Header{Name: "example.org.", Class: dnsv2.ClassINET},
+		ADGUARDHOMEAAAAPASSTHROUGH: privatetypesrdata.ADGUARDHOMEAAAAPASSTHROUGH{
+			Target: "",
+		},
+	}
+	rry, err := dnsv2.New(y.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rry.String() != y.String() {
+		t.Fatalf("ADGUARDHOME_AAAA_PASSTHROUGH string presentations should be identical:\n%s\n%s", rry.String(), y.String())
+	}
+}

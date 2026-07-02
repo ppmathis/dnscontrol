@@ -17,11 +17,11 @@ import (
 	"github.com/DNSControl/dnscontrol/v4/models"
 	"github.com/DNSControl/dnscontrol/v4/pkg/diff2"
 	"github.com/DNSControl/dnscontrol/v4/pkg/printer"
+	privatetypesrdata "github.com/DNSControl/dnscontrol/v4/pkg/privatetypes/rdata"
 	"github.com/DNSControl/dnscontrol/v4/pkg/providers"
 	"github.com/DNSControl/dnscontrol/v4/pkg/transform"
 	"github.com/DNSControl/dnscontrol/v4/pkg/txtutil"
 	"github.com/DNSControl/dnscontrol/v4/pkg/zonecache"
-	"github.com/DNSControl/dnscontrol/v4/providers/cloudflare/rtypes/cfsingleredirect"
 )
 
 /*
@@ -183,7 +183,7 @@ func (c *cloudflareProvider) GetZoneRecords(dc *models.DomainConfig) (models.Rec
 	// Fetch Single Redirects concurrently if enabled
 	if c.manageSingleRedirects {
 		go func() {
-			prs, err := c.getSingleRedirects(domainID, domain)
+			prs, err := c.getSingleRedirects(dc, domainID)
 			redirectCh <- result{records: prs, err: err}
 		}()
 	} else {
@@ -383,7 +383,7 @@ func genComparableWithMgmt(rec *models.RecordConfig, manageComments, manageTags 
 
 func (c *cloudflareProvider) mkCreateCorrection(newrec *models.RecordConfig, domainID, msg string) []*models.Correction {
 	switch newrec.Type {
-	case "WORKER_ROUTE":
+	case "CF_WORKER_ROUTE":
 		return []*models.Correction{{
 			Msg: msg,
 			F:   func() error { return c.createWorkerRoute(domainID, newrec.GetTargetField()) },
@@ -392,7 +392,8 @@ func (c *cloudflareProvider) mkCreateCorrection(newrec *models.RecordConfig, dom
 		return []*models.Correction{{
 			Msg: msg,
 			F: func() error {
-				return c.createSingleRedirect(domainID, *newrec.F.(*cfsingleredirect.SingleRedirectConfig))
+				//return c.createSingleRedirect(domainID, *newrec.F.(*cfsingleredirect.SingleRedirectConfig))
+				return c.createSingleRedirect(domainID, newrec.GetRDATA().(privatetypesrdata.CLOUDFLAREAPISINGLEREDIRECT))
 			},
 		}}
 	default:
@@ -403,10 +404,10 @@ func (c *cloudflareProvider) mkCreateCorrection(newrec *models.RecordConfig, dom
 func (c *cloudflareProvider) mkChangeCorrection(oldrec, newrec *models.RecordConfig, domainID string, msg string) []*models.Correction {
 	var idTxt string
 	switch oldrec.Type {
-	case "WORKER_ROUTE":
+	case "CF_WORKER_ROUTE":
 		idTxt = oldrec.Original.(cloudflare.WorkerRoute).ID
 	case "CLOUDFLAREAPI_SINGLE_REDIRECT":
-		idTxt = oldrec.F.(*cfsingleredirect.SingleRedirectConfig).SRRRulesetID
+		idTxt = oldrec.GetRDATA().(privatetypesrdata.CLOUDFLAREAPISINGLEREDIRECT).SRRRulesetID
 	default:
 		idTxt = oldrec.Original.(cloudflare.DNSRecord).ID
 	}
@@ -420,7 +421,7 @@ func (c *cloudflareProvider) mkChangeCorrection(oldrec, newrec *models.RecordCon
 				return c.updateSingleRedirect(domainID, oldrec, newrec)
 			},
 		}}
-	case "WORKER_ROUTE":
+	case "CF_WORKER_ROUTE":
 		return []*models.Correction{{
 			Msg: msg,
 			F: func() error {
@@ -443,7 +444,7 @@ func (c *cloudflareProvider) mkDeleteCorrection(recType string, origRec *models.
 	switch recType {
 	case "PAGE_RULE":
 		idTxt = origRec.Original.(cloudflare.PageRule).ID
-	case "WORKER_ROUTE":
+	case "CF_WORKER_ROUTE":
 		idTxt = origRec.Original.(cloudflare.WorkerRoute).ID
 	case "CLOUDFLAREAPI_SINGLE_REDIRECT":
 		idTxt = origRec.Original.(cloudflare.RulesetRule).ID
@@ -458,10 +459,10 @@ func (c *cloudflareProvider) mkDeleteCorrection(recType string, origRec *models.
 			switch recType {
 			// case "PAGE_RULE":
 			// 	return c.deletePageRule(origRec.Original.(cloudflare.PageRule).ID, domainID)
-			case "WORKER_ROUTE":
+			case "CF_WORKER_ROUTE":
 				return c.deleteWorkerRoute(origRec.Original.(cloudflare.WorkerRoute).ID, domainID)
 			case "CLOUDFLAREAPI_SINGLE_REDIRECT":
-				return c.deleteSingleRedirects(domainID, *origRec.F.(*cfsingleredirect.SingleRedirectConfig))
+				return c.deleteSingleRedirects(domainID, origRec.GetRDATA().(privatetypesrdata.CLOUDFLAREAPISINGLEREDIRECT))
 			default:
 				return c.deleteDNSRecord(origRec.Original.(cloudflare.DNSRecord), domainID)
 			}
@@ -670,7 +671,7 @@ func (c *cloudflareProvider) preprocessConfig(dc *models.DomainConfig) error {
 				return errors.New("invalid data specified for cloudflare worker record")
 			}
 			rec.TTL = 1
-			rec.Type = "WORKER_ROUTE"
+			rec.Type = "CF_WORKER_ROUTE"
 		}
 	}
 
@@ -701,7 +702,7 @@ func (c *cloudflareProvider) preprocessConfig(dc *models.DomainConfig) error {
 	return nil
 }
 
-func (c *cloudflareProvider) LogTranscode(zone string, redirect *cfsingleredirect.SingleRedirectConfig) error {
+func (c *cloudflareProvider) LogTranscode(zone string, redirect privatetypesrdata.CLOUDFLAREAPISINGLEREDIRECT) error {
 	// No filename? Don't log anything.
 	filename := c.tcLogFilename
 	if filename == "" {

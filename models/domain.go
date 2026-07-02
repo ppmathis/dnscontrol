@@ -2,6 +2,7 @@ package models
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/DNSControl/dnscontrol/v4/pkg/domaintags"
@@ -24,6 +25,7 @@ const (
 )
 
 // DomainConfig describes a DNS domain (technically a DNS zone).
+// Do not create your own `&models.DomainConfig{}`.  Use `models.NewDomainConfig(name)`.
 type DomainConfig struct {
 	NameRaw     string `json:"-"`    // name as entered by user in dnsconfig.js
 	Name        string `json:"name"` // NO trailing "."   Converted to IDN (punycode) early in the pipeline.
@@ -71,6 +73,47 @@ type DomainConfig struct {
 	pendingPopulateCorrections map[string][]*Correction // Corrections for zone creations at each provider
 }
 
+func NewDomainConfig(name string) (*DomainConfig, error) {
+	if strings.HasSuffix(name, ".") {
+		return nil, fmt.Errorf("do not call NewDomainName with trailing dot: %q", name)
+	}
+	dcn := domaintags.MakeDomainNameVarieties(name) // TODO(tlim): Create a version of MakeDomainNameVarieties that returns an error on failure.
+	//dcn := domaintags.DomainNameVarieties{NameASCII: name}
+	dc := &DomainConfig{
+		NameRaw:     dcn.NameRaw,
+		Name:        dcn.NameASCII,
+		NameUnicode: dcn.NameUnicode,
+		Tag:         dcn.Tag,
+		UniqueName:  dcn.UniqueName,
+		DisplayName: dcn.DisplayName,
+
+		// TODO(tlim): Eliminate the need for this Metedata. It was a hack to avoid changing legacy code but should be easier to eliminate now.
+		Metadata: map[string]string{
+			DomainUniqueName:  dcn.UniqueName,
+			DomainNameRaw:     dcn.NameRaw,
+			DomainNameUnicode: dcn.NameUnicode,
+		},
+	}
+
+	return dc, nil
+}
+
+// FixLegacyDC calls .FixUp() on all records within DC.
+func (dc *DomainConfig) FixLegacyDC() {
+	dc.Records.FixLegacyRecords(dc.Name)
+}
+
+// FixLegacyRecords calls .FixUp() on all records in recs.
+func (recs Records) FixLegacyRecords(origin string) {
+	for _, rec := range recs {
+		rec.FixUp(origin)
+	}
+}
+
+//func FixLegacyRecord(rec *models.RecordConfig, origin string) {
+//	rec.FixUp(origin) // Hack. Populates .RDATA and .TypeNum if needed.
+//}
+
 // PostProcess performs and post-processing required after running dnsconfig.js and loading the result.
 // It is called by dns.go's PostProcess() function.
 func (dc *DomainConfig) PostProcess() {
@@ -79,9 +122,24 @@ func (dc *DomainConfig) PostProcess() {
 		dc.Metadata = map[string]string{}
 	}
 
-	// Turn the user-supplied name into the fixed forms.
-	ff := domaintags.MakeDomainNameVarieties(dc.Name)
-	dc.Tag, dc.NameRaw, dc.Name, dc.NameUnicode, dc.UniqueName, dc.DisplayName = ff.Tag, ff.NameRaw, ff.NameASCII, ff.NameUnicode, ff.UniqueName, ff.DisplayName
+	//  HACK: Fill in names (This means models.NewDomainConfig() was not used.  We can eliminate this when legacy code is removed.
+	ff := domaintags.MakeDomainNameVarieties(dc.Name) // FIXME: Slow.  Call only if needed.
+	if dc.Tag == "" {
+		dc.Tag = ff.Tag
+	}
+	if dc.NameRaw == "" {
+		dc.NameRaw = ff.NameRaw
+	}
+	dc.Name = ff.NameASCII // We always overwrite this. It's a hack, but it works. Good enough until legacy code is removed.
+	if dc.NameUnicode == "" {
+		dc.NameUnicode = ff.NameUnicode
+	}
+	if dc.UniqueName == "" {
+		dc.UniqueName = ff.UniqueName
+	}
+	if dc.DisplayName == "" {
+		dc.DisplayName = ff.DisplayName
+	}
 
 	// Store the FixForms is Metadata so we don't have to change the signature of every function that might need them.
 	// This is a bit ugly but avoids a huge refactor. Please avoid using these to make the future refactor easier.
@@ -128,12 +186,9 @@ func (dc *DomainConfig) Filter(f func(r *RecordConfig) bool) {
 // - Name
 // - NameFQDN
 // - Target (CNAME and MX only).
+// NOTE: This will go away when RCv3 is adopted.
 func (dc *DomainConfig) Punycode() error {
 	for _, rec := range dc.Records {
-		if rec.IsModernType() {
-			continue // Modern types handle punycode themselves.
-		}
-
 		// Update the label:
 		t, err := idna.ToASCII(rec.GetLabelFQDN())
 		if err != nil {
@@ -156,7 +211,9 @@ func (dc *DomainConfig) Punycode() error {
 			if err := rec.SetTarget(rec.GetTargetField()); err != nil {
 				return err
 			}
-		case "A", "AAAA", "CAA", "DHCID", "DNSKEY", "DS", "HTTPS", "LOC", "LUA", "NAPTR", "OPENPGPKEY", "SMIMEA", "SOA", "SSHFP", "SVCB", "TXT", "TLSA", "AZURE_ALIAS":
+		case "A", "AAAA", "CAA", "DHCID", "DNSKEY", "DS", "HTTPS", "LOC",
+			"LUA", "NAPTR", "OPENPGPKEY", "RP", "SMIMEA", "SOA", "SSHFP", "SVCB",
+			"TXT", "TLSA", "AZURE_ALIAS":
 			// Nothing to do.
 		default:
 			return fmt.Errorf("Punycode rtype %v unimplemented", rec.Type)

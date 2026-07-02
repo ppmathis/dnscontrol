@@ -55,8 +55,9 @@ func checkTarget(target string) error {
 
 // validateRecordTypes list of valid rec.Type values. Returns true if this is a real DNS record type, false means it is a pseudo-type used internally.
 func validateRecordTypes(rec *models.RecordConfig, domain string, pTypes []string) error {
-	if rec.IsModernType() {
-		// Modern types do their own validation.
+	switch rec.Type {
+	// RCv3 records do not need this validation step.
+	case "CLOUDFLAREAPI_SINGLE_REDIRECT", "RP", "DS":
 		return nil
 	}
 
@@ -89,9 +90,11 @@ func validateRecordTypes(rec *models.RecordConfig, domain string, pTypes []strin
 	}
 	_, ok := validTypes[rec.Type]
 	if !ok {
+
 		cType := providers.GetCustomRecordType(rec.Type)
 		if cType == nil {
-			return fmt.Errorf("unsupported record type (%v) domain=%v name=%v", rec.Type, domain, rec.GetLabel())
+			//return fmt.Errorf("unsupported record type (%v) domain=%v name=%v", rec.Type, domain, rec.GetLabel())
+			return fmt.Errorf("unsupported record type (%v) domain=%v name=%v Type=%s TypeNum=%d", rec.Type, domain, rec.GetLabel(), rec.Type, rec.TypeNum)
 		}
 		for _, providerType := range pTypes {
 			if providerType != cType.Provider {
@@ -178,8 +181,8 @@ func checkSoa(expire uint32, minttl uint32, refresh uint32, retry uint32, mbox s
 
 // checkTargets returns true if rec.Target is valid for the rec.Type.
 func checkTargets(rec *models.RecordConfig, domain string) (errs []error) {
-	if rec.IsModernType() {
-		// Modern types do their own validation.
+	switch rec.Type {
+	case "CLOUDFLAREAPI_SINGLE_REDIRECT", "RP", "DS":
 		return nil
 	}
 
@@ -451,8 +454,16 @@ func ValidateAndNormalizeConfig(config *models.DNSConfig) (errs []error) {
 				if rec.SubDomain != "" {
 					origin = rec.SubDomain + "." + origin
 				}
-				if err := rec.SetTarget(dnsutilv1.AddOrigin(rec.GetTargetField(), origin)); err != nil {
+				before := rec.GetTargetField()
+				after := dnsutilv1.AddOrigin(before, origin)
+				if err := rec.SetTarget(after); err != nil {
 					errs = append(errs, err)
+				} else if after != before {
+					// SetTarget only updates the raw target; when
+					// canonicalization actually changed it (e.g. a relative or
+					// "@" target expanded to a FQDN), refresh the cached
+					// RDATA/ComparableV3 so they reflect the new target.
+					refreshDerivedFields(rec, domain.Name)
 				}
 			case "A", "AAAA":
 				if err := rec.SetTargetIP(rec.GetTargetIP()); err != nil {
@@ -693,6 +704,12 @@ func checkRecordSetHasMultipleTTLs(records []*models.RecordConfig) (errs []error
 	// Find the inconsistencies:
 	m := make(map[string]map[uint32]map[string]bool)
 	for _, r := range records {
+		// if r.Type == "CLOUDFLAREAPI_SINGLE_REDIRECT" {
+		// 	continue
+		// }
+		if !r.IsTTLSignificant() {
+			continue
+		}
 		label := r.GetLabelFQDN()
 		ttl := r.TTL
 		rtype := r.Type
@@ -960,6 +977,7 @@ func applyRecordTransforms(domain *models.DomainConfig) error {
 				if err := rec.SetTarget(newIP.String()); err != nil {
 					return err
 				}
+				refreshDerivedFields(rec, domain.Name)
 			} else if i > 0 {
 				// any additional ips need identical records with the alternate ip added to the domain
 				cpy, err := rec.Copy()
@@ -969,9 +987,20 @@ func applyRecordTransforms(domain *models.DomainConfig) error {
 				if err := cpy.SetTarget(newIP.String()); err != nil {
 					return err
 				}
+				refreshDerivedFields(cpy, domain.Name)
 				domain.Records = append(domain.Records, cpy)
 			}
 		}
 	}
 	return nil
+}
+
+// refreshDerivedFields recomputes the derived fields (RDATA and ComparableV3)
+// of a record after its target was changed during normalization. SetTarget only
+// updates the raw target string; the cached RDATA/ComparableV3 set at
+// IR-construction time would otherwise still describe the pre-normalization
+// target. This matters when a transform rewrites an A record's IP, or when a
+// relative/"@" CNAME/MX/NS/SRV/ALIAS target is canonicalized to a FQDN.
+func refreshDerivedFields(rec *models.RecordConfig, origin string) {
+	rec.RecomputeV3Fields(origin)
 }

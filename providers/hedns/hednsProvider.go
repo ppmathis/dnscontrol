@@ -18,10 +18,7 @@ import (
 
 	"github.com/DNSControl/dnscontrol/v4/models"
 	"github.com/DNSControl/dnscontrol/v4/pkg/diff2"
-	"github.com/DNSControl/dnscontrol/v4/pkg/domaintags"
 	"github.com/DNSControl/dnscontrol/v4/pkg/providers"
-	"github.com/DNSControl/dnscontrol/v4/pkg/rtypecontrol"
-	"github.com/DNSControl/dnscontrol/v4/pkg/rtypeinfo"
 	"github.com/DNSControl/dnscontrol/v4/pkg/txtutil"
 	"github.com/DNSControl/dnscontrol/v4/pkg/zonecache"
 	"github.com/PuerkitoBio/goquery"
@@ -487,12 +484,7 @@ func (c *hednsProvider) GetZoneRecords(dc *models.DomainConfig) (models.Records,
 		}
 
 		var rc *models.RecordConfig
-		if rtypeinfo.IsModernType(rec.Type) {
-			// FQDNs for NewRecordConfigFromString require trailing "."
-			rc, err = rtypecontrol.NewRecordConfigFromString(
-				rec.Name+".", rec.TTL, rec.Type, rec.Data,
-				domaintags.MakeDomainNameVarieties(domain),
-			)
+		if false {
 		} else {
 			rc = &models.RecordConfig{Type: rec.Type, TTL: rec.TTL}
 			rc.SetLabelFromFQDN(rec.Name, domain)

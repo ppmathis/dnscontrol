@@ -7,10 +7,9 @@ import (
 	"strings"
 
 	"github.com/DNSControl/dnscontrol/v4/models"
-	"github.com/DNSControl/dnscontrol/v4/pkg/domaintags"
-	"github.com/DNSControl/dnscontrol/v4/pkg/rtypecontrol"
+	"github.com/DNSControl/dnscontrol/v4/pkg/privatetypes"
+	privatetypesrdata "github.com/DNSControl/dnscontrol/v4/pkg/privatetypes/rdata"
 	"github.com/DNSControl/dnscontrol/v4/pkg/txtutil"
-	"github.com/DNSControl/dnscontrol/v4/providers/cloudflare/rtypes/cfsingleredirect"
 	"github.com/cloudflare/cloudflare-go"
 	"golang.org/x/net/idna"
 )
@@ -344,7 +343,7 @@ func (c *cloudflareProvider) getUniversalSSL(domainID string) (bool, error) {
 	return result.Enabled, err
 }
 
-func (c *cloudflareProvider) getSingleRedirects(id string, domain string) ([]*models.RecordConfig, error) {
+func (c *cloudflareProvider) getSingleRedirects(dc *models.DomainConfig, id string) ([]*models.RecordConfig, error) {
 	rules, err := c.cfClient.GetEntrypointRuleset(context.Background(), cloudflare.ZoneIdentifier(id), "http_request_dynamic_redirect")
 	if err != nil {
 		var e *cloudflare.NotFoundError
@@ -364,21 +363,19 @@ func (c *cloudflareProvider) getSingleRedirects(id string, domain string) ([]*mo
 		srThen := pr.ActionParameters.FromValue.TargetURL.Expression
 		code := uint16(pr.ActionParameters.FromValue.StatusCode)
 
-		rec, err := rtypecontrol.NewRecordConfigFromRaw(rtypecontrol.FromRawOpts{
-			Type: "CLOUDFLAREAPI_SINGLE_REDIRECT",
-			TTL:  1,
-			Args: []any{srName, code, srWhen, srThen},
-			DCN:  domaintags.MakeDomainNameVarieties(domain),
-		})
+		// Make the record:
+		rec, err := dc.NewRecordConfig("@", 1, privatetypes.TypeCLOUDFLAREAPISINGLEREDIRECT, srName, code, srWhen, srThen)
 		if err != nil {
 			return nil, err
 		}
 		rec.Original = thisPr
 
 		// Store the IDs. These will be needed for update/delete operations.
-		sr := rec.F.(*cfsingleredirect.SingleRedirectConfig)
+		sr := rec.GetRDATA().(privatetypesrdata.CLOUDFLAREAPISINGLEREDIRECT)
 		sr.SRRRulesetID = rules.ID
 		sr.SRRRulesetRuleID = pr.ID
+		rec.SetRDATA(sr)
+		// TODO(tlim) Make these paramters to the NewRecordConfig above.
 
 		recs = append(recs, rec)
 	}
@@ -386,7 +383,7 @@ func (c *cloudflareProvider) getSingleRedirects(id string, domain string) ([]*mo
 	return recs, nil
 }
 
-func (c *cloudflareProvider) createSingleRedirect(domainID string, cfr cfsingleredirect.SingleRedirectConfig) error {
+func (c *cloudflareProvider) createSingleRedirect(domainID string, cfr privatetypesrdata.CLOUDFLAREAPISINGLEREDIRECT) error {
 	newSingleRedirectRulesActionParameters := cloudflare.RulesetRuleActionParameters{}
 	newSingleRedirectRule := cloudflare.RulesetRule{}
 	newSingleRedirectRules := []cloudflare.RulesetRule{}
@@ -429,7 +426,7 @@ func (c *cloudflareProvider) createSingleRedirect(domainID string, cfr cfsingler
 	return err
 }
 
-func (c *cloudflareProvider) deleteSingleRedirects(domainID string, cfr cfsingleredirect.SingleRedirectConfig) error {
+func (c *cloudflareProvider) deleteSingleRedirects(domainID string, cfr privatetypesrdata.CLOUDFLAREAPISINGLEREDIRECT) error {
 	err := c.cfClient.DeleteRulesetRule(context.Background(), cloudflare.ZoneIdentifier(domainID), cloudflare.DeleteRulesetRuleParams{
 		RulesetID:     cfr.SRRRulesetID,
 		RulesetRuleID: cfr.SRRRulesetRuleID,
@@ -444,10 +441,10 @@ func (c *cloudflareProvider) deleteSingleRedirects(domainID string, cfr cfsingle
 }
 
 func (c *cloudflareProvider) updateSingleRedirect(domainID string, oldrec, newrec *models.RecordConfig) error {
-	if err := c.deleteSingleRedirects(domainID, *oldrec.F.(*cfsingleredirect.SingleRedirectConfig)); err != nil {
+	if err := c.deleteSingleRedirects(domainID, oldrec.GetRDATA().(privatetypesrdata.CLOUDFLAREAPISINGLEREDIRECT)); err != nil {
 		return err
 	}
-	return c.createSingleRedirect(domainID, *newrec.F.(*cfsingleredirect.SingleRedirectConfig))
+	return c.createSingleRedirect(domainID, newrec.GetRDATA().(privatetypesrdata.CLOUDFLAREAPISINGLEREDIRECT))
 }
 
 func (c *cloudflareProvider) getWorkerRoutes(id string, domain string) ([]*models.RecordConfig, error) {
@@ -460,7 +457,7 @@ func (c *cloudflareProvider) getWorkerRoutes(id string, domain string) ([]*model
 	for _, pr := range res.Routes {
 		thisPr := pr
 		r := &models.RecordConfig{
-			Type:     "WORKER_ROUTE",
+			Type:     "CF_WORKER_ROUTE",
 			Original: thisPr,
 			TTL:      1,
 		}

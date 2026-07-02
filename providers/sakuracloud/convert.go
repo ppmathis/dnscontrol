@@ -1,6 +1,8 @@
 package sakuracloud
 
 import (
+	"strings"
+
 	"github.com/DNSControl/dnscontrol/v4/models"
 )
 
@@ -30,10 +32,12 @@ func toRc(domain string, r domainRecord) (*models.RecordConfig, error) {
 }
 
 func toNative(rc *models.RecordConfig) domainRecord {
+	contents := rc.String()
+	contents = strings.ReplaceAll(contents, `"`, ``)
 	rr := domainRecord{
 		Name:  rc.GetLabel(),
 		Type:  rc.Type,
-		RData: rc.String(),
+		RData: contents,
 	}
 	if rc.TTL != defaultTTL {
 		rr.TTL = rc.TTL
@@ -42,6 +46,12 @@ func toNative(rc *models.RecordConfig) domainRecord {
 	switch rc.Type {
 	case "TXT":
 		rr.RData = rc.GetTargetTXTJoined()
+	case "CAA":
+		// SakuraCloud requires the CAA value to remain quoted, e.g.
+		// `0 issue "letsencrypt.org"`. The generic quote-stripping above
+		// produces `0 issue letsencrypt.org`, which the API rejects as
+		// malformed.
+		rr.RData = rc.GetTargetCombined()
 	}
 	return rr
 }

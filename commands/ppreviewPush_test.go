@@ -4,16 +4,15 @@ import (
 	"testing"
 
 	"github.com/DNSControl/dnscontrol/v4/models"
-	"github.com/DNSControl/dnscontrol/v4/pkg/rtypecontrol"
 )
 
 func Test_whichZonesToProcess(t *testing.T) {
 
-	dcNoTag := &models.DomainConfig{Name: "example.com"}
-	dcNoTag2 := &models.DomainConfig{Name: "example.net"}
-	dcTaggedEmpty := &models.DomainConfig{Name: "example.com!"}
-	dcTaggedGeorge := &models.DomainConfig{Name: "example.com!george"}
-	dcTaggedJohn := &models.DomainConfig{Name: "example.com!john"}
+	dcNoTag, _ := models.NewDomainConfig("example.com")
+	dcNoTag2, _ := models.NewDomainConfig("example.net")
+	dcTaggedEmpty, _ := models.NewDomainConfig("example.com!")
+	dcTaggedGeorge, _ := models.NewDomainConfig("example.com!george")
+	dcTaggedJohn, _ := models.NewDomainConfig("example.com!john")
 
 	allDC := []*models.DomainConfig{
 		dcNoTag,
@@ -26,7 +25,7 @@ func Test_whichZonesToProcess(t *testing.T) {
 	// This is needed since we aren't calling js.ExecuteJavaScript().
 	for _, dc := range allDC {
 		dc.PostProcess()
-		rtypecontrol.FixLegacyDC(dc)
+		dc.FixLegacyDC()
 	}
 
 	type args struct {

@@ -13,12 +13,11 @@ import (
 	"testing"
 	"time"
 
+	dnsv2 "codeberg.org/miekg/dns"
 	"github.com/DNSControl/dnscontrol/v4/models"
-	"github.com/DNSControl/dnscontrol/v4/pkg/domaintags"
 	"github.com/DNSControl/dnscontrol/v4/pkg/nameservers"
+	"github.com/DNSControl/dnscontrol/v4/pkg/privatetypes"
 	"github.com/DNSControl/dnscontrol/v4/pkg/providers"
-	"github.com/DNSControl/dnscontrol/v4/pkg/rtypecontrol"
-	"github.com/DNSControl/dnscontrol/v4/pkg/transform"
 	"github.com/DNSControl/dnscontrol/v4/pkg/zonerecs"
 	dnsutilv1 "github.com/miekg/dns/dnsutil"
 )
@@ -30,8 +29,12 @@ var (
 	printElapsed = flag.Bool("elapsed", false, "Print elapsed time for each testgroup")
 )
 
-// Global variable to hold the current DomainConfig	for use in FromRaw calls.
-var globalDCN *domaintags.DomainNameVarieties
+// Global variable to hold the current DomainConfig for use in NewRecordConfig calls.
+// This is an ugly, ugly, hack. We have to find something better.
+var globalDC *models.DomainConfig
+
+// Default TTL used in integration tests.
+var defaultTTL = uint32(300)
 
 // Helper constants/funcs for the HEDNS Dynamic DNS testing:
 
@@ -93,11 +96,9 @@ func CfFlattenOn() *TestCase {
 }
 
 func getDomainConfigWithNameservers(t *testing.T, prv providers.DNSServiceProvider, domainName string) *models.DomainConfig {
-	dc := &models.DomainConfig{
-		Name: domainName,
-	}
+	dc, _ := models.NewDomainConfig(domainName)
 	dc.PostProcess()
-	rtypecontrol.FixLegacyDC(dc)
+	dc.FixLegacyDC()
 
 	// fix up nameservers
 	ns, err := prv.GetNameservers(domainName)
@@ -176,16 +177,24 @@ func makeChanges(t *testing.T, prv providers.DNSServiceProvider, dc *models.Doma
 
 			if strings.Contains(rc.GetTargetField(), "**current-domain**") {
 				_ = rc.SetTarget(strings.Replace(rc.GetTargetField(), "**current-domain**", domainName, 1))
+				rc.ClearRDATA()
+				rc.ComparableV3 = ""
 			}
 			if strings.Contains(rc.GetLabelFQDN(), "**current-domain**") {
 				rc.SetLabelFromFQDN(strings.Replace(rc.GetLabelFQDN(), "**current-domain**", domainName, 1), domainName)
+				rc.ClearRDATA()
+				rc.ComparableV3 = ""
 			}
 
 			if strings.Contains(rc.GetTargetField(), "**subscription-id**") {
 				_ = rc.SetTarget(strings.Replace(rc.GetTargetField(), "**subscription-id**", origConfig["SubscriptionID"], 1))
+				rc.ClearRDATA()
+				rc.ComparableV3 = ""
 			}
 			if strings.Contains(rc.GetTargetField(), "**resource-group**") {
-				_ = rc.SetTarget(strings.Replace(rc.GetTargetField(), "**resource-group**", origConfig["ResourceGroup"], 1))
+				_ = rc.SetTarget(strings.Replace(rc.GetTargetField(), "**resource-group**", strings.ToLower(origConfig["ResourceGroup"]), 1))
+				rc.ClearRDATA()
+				rc.ComparableV3 = ""
 			}
 
 			dom.Records = append(dom.Records, &rc)
@@ -205,7 +214,7 @@ func makeChanges(t *testing.T, prv providers.DNSServiceProvider, dc *models.Doma
 			TargetPattern: "",
 		})
 		models.PostProcessRecords(dom.Records)
-		rtypecontrol.FixLegacyDC(dom)
+		dom.FixLegacyDC()
 		dom2, _ := dom.Copy()
 
 		if err := providers.AuditRecords(*providerFlag, dom.Records); err != nil {
@@ -216,6 +225,7 @@ func makeChanges(t *testing.T, prv providers.DNSServiceProvider, dc *models.Doma
 		//fmt.Printf("DEBUG: Running test %q: Names %q %q %q\n", desc, dom.Name, dom.NameRaw, dom.NameUnicode)
 
 		// get and run corrections for first time
+
 		_, corrections, actualChangeCount, err := zonerecs.CorrectZoneRecords(prv, dom)
 		if err != nil {
 			t.Fatal(fmt.Errorf("runTests: %w", err))
@@ -249,6 +259,7 @@ func makeChanges(t *testing.T, prv providers.DNSServiceProvider, dc *models.Doma
 		}
 
 		// run a second time and expect zero corrections
+
 		_, corrections, actualChangeCount, err = zonerecs.CorrectZoneRecords(prv, dom2)
 		if err != nil {
 			t.Fatal(err)
@@ -265,7 +276,7 @@ func makeChanges(t *testing.T, prv providers.DNSServiceProvider, dc *models.Doma
 
 func runTests(t *testing.T, prv providers.DNSServiceProvider, domainName string, origConfig map[string]string) {
 	dc := getDomainConfigWithNameservers(t, prv, domainName)
-	globalDCN = dc.DomainNameVarieties()
+	globalDC = dc
 
 	testGroups := makeTests()
 
@@ -363,28 +374,32 @@ func withMeta(record *models.RecordConfig, metadata map[string]string) *models.R
 }
 
 func a(name, target string) *models.RecordConfig {
-	return makeRec(name, target, "A")
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, dnsv2.TypeA, target)
+	panicOnErr(err)
+	return r
 }
 
 func aaaa(name, target string) *models.RecordConfig {
-	return makeRec(name, target, "AAAA")
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, dnsv2.TypeAAAA, target)
+	panicOnErr(err)
+	return r
 }
 
 func alias(name, target string) *models.RecordConfig {
-	return makeRec(name, target, "ALIAS")
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, privatetypes.TypeALIAS, target)
+	panicOnErr(err)
+	return r
 }
 
 func azureAlias(name, aliasType, target string) *models.RecordConfig {
-	r := makeRec(name, target, "AZURE_ALIAS")
-	r.AzureAlias = map[string]string{
-		"type": aliasType,
-	}
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, privatetypes.TypeAZUREALIAS, aliasType, target)
+	panicOnErr(err)
 	return r
 }
 
 func caa(name string, flag uint8, tag string, target string) *models.RecordConfig {
-	r := makeRec(name, target, "CAA")
-	panicOnErr(r.SetTargetCAA(flag, tag, target))
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, dnsv2.TypeCAA, flag, tag, target)
+	panicOnErr(err)
 	return r
 }
 
@@ -428,99 +443,80 @@ func cfSingleRedirectEnabled() bool {
 }
 
 func cfSingleRedirect(name string, code any, when, then string) *models.RecordConfig {
-	rec, err := rtypecontrol.NewRecordConfigFromRaw(rtypecontrol.FromRawOpts{
-		Type: "CLOUDFLAREAPI_SINGLE_REDIRECT",
-		TTL:  1,
-		Args: []any{name, code, when, then},
-		DCN:  globalDCN,
-	})
+	r, err := globalDC.NewRecordConfig("@", 1, privatetypes.TypeCLOUDFLAREAPISINGLEREDIRECT, name, code, when, then)
 	panicOnErr(err)
-	return rec
+	return r
 }
 
 func cfWorkerRoute(pattern, target string) *models.RecordConfig {
-	t := fmt.Sprintf("%s,%s", pattern, target)
-	r := makeRec("@", t, "CF_WORKER_ROUTE")
+	r, err := globalDC.NewRecordConfig("@", 1, privatetypes.TypeCFWORKERROUTE, pattern, target)
+	panicOnErr(err)
 	return r
 }
 
 func bunnyPullZone(name, pullZoneID string) *models.RecordConfig {
-	return makeRec(name, pullZoneID, "BUNNY_DNS_PZ")
+	r, err := globalDC.NewRecordConfig(name, 1, privatetypes.TypeBUNNYDNSPZ, pullZoneID)
+	panicOnErr(err)
+	return r
 }
 
-// func cfRedir(pattern, target string) *models.RecordConfig {
-// 	rec, err := rtypecontrol.NewRecordConfigFromRaw(rtypecontrol.FromRawOpts{
-// 		Type: "CF_REDIRECT",
-// 		TTL:  1,
-// 		Args: []any{pattern, target},
-// 		DCN:  globalDCN,
-// 	})
-// 	panicOnErr(err)
-// 	return rec
-// }
-
-// func cfRedirTemp(pattern, target string) *models.RecordConfig {
-// 	rec, err := rtypecontrol.NewRecordConfigFromRaw(rtypecontrol.FromRawOpts{
-// 		Type: "CF_TEMP_REDIRECT",
-// 		TTL:  1,
-// 		Args: []any{pattern, target},
-// 		DCN:  globalDCN,
-// 	})
-// 	panicOnErr(err)
-// 	return rec
-// }
-
 func aghAPassthrough(pattern, target string) *models.RecordConfig {
-	r := makeRec(pattern, target, "ADGUARDHOME_A_PASSTHROUGH")
+	r, err := globalDC.NewRecordConfig(pattern, defaultTTL, privatetypes.TypeADGUARDHOMEAPASSTHROUGH, target)
+	panicOnErr(err)
 	return r
 }
 
 func aghAAAAPassthrough(pattern, target string) *models.RecordConfig {
-	r := makeRec(pattern, target, "ADGUARDHOME_AAAA_PASSTHROUGH")
+	r, err := globalDC.NewRecordConfig(pattern, defaultTTL, privatetypes.TypeADGUARDHOMEAAAAPASSTHROUGH, target)
+	panicOnErr(err)
 	return r
 }
 
 func mikrotikFwd(name, target string) *models.RecordConfig {
-	return makeRec(name, target, "MIKROTIK_FWD")
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, privatetypes.TypeMIKROTIKFWD, target)
+	panicOnErr(err)
+	return r
 }
 
 func mikrotikNxdomain(name string) *models.RecordConfig {
-	return makeRec(name, "NXDOMAIN", "MIKROTIK_NXDOMAIN")
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, privatetypes.TypeMIKROTIKNXDOMAIN)
+	panicOnErr(err)
+	return r
 }
 
 func cname(name, target string) *models.RecordConfig {
-	return makeRec(name, target, "CNAME")
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, dnsv2.TypeCNAME, target)
+	panicOnErr(err)
+	return r
 }
 
 func dhcid(name, target string) *models.RecordConfig {
-	return makeRec(name, target, "DHCID")
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, dnsv2.TypeDHCID, target)
+	panicOnErr(err)
+	return r
 }
 
 func dname(name, target string) *models.RecordConfig {
-	return makeRec(name, target, "DNAME")
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, dnsv2.TypeDNAME, target)
+	panicOnErr(err)
+	return r
 }
 
 func ds(name string, keyTag uint16, algorithm, digestType uint8, digest string) *models.RecordConfig {
-	rec, err := rtypecontrol.NewRecordConfigFromRaw(rtypecontrol.FromRawOpts{
-		Type: "DS",
-		TTL:  300,
-		Args: []any{name, keyTag, algorithm, digestType, digest},
-		DCN:  globalDCN,
-	})
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, dnsv2.TypeDS, keyTag, algorithm, digestType, digest)
 	panicOnErr(err)
-	return rec
+	return r
 }
 
 func dnskey(name string, flags uint16, protocol, algorithm uint8, publicKey string) *models.RecordConfig {
-	r := makeRec(name, "", "DNSKEY")
-	panicOnErr(r.SetTargetDNSKEY(flags, protocol, algorithm, publicKey))
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, dnsv2.TypeDNSKEY, flags, protocol, algorithm, publicKey)
+	panicOnErr(err)
 	return r
 }
 
 func https(name string, priority uint16, target string, params string) *models.RecordConfig {
-	r := makeRec(name, target, "HTTPS")
-	r.SvcPriority = priority
-	r.SvcParams = params
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, dnsv2.TypeHTTPS, priority, target, params)
+	panicOnErr(err)
 	return r
 }
 
@@ -541,72 +537,67 @@ func ignore(labelSpec string, typeSpec string, targetSpec string) *models.Record
 	r.Metadata["ignore_LabelPattern"] = labelSpec
 	r.Metadata["ignore_RTypePattern"] = typeSpec
 	r.Metadata["ignore_TargetPattern"] = targetSpec
+	r.FixUp(globalDC.Name) // Hack. Populates .RDATA and .TypeNum if needed.
 	return r
 }
 
 func loc(name string, d1 uint8, m1 uint8, s1 float32, ns string,
 	d2 uint8, m2 uint8, s2 float32, ew string, al float32, sz float32, hp float32, vp float32,
 ) *models.RecordConfig {
-	r := makeRec(name, "", "LOC")
-	panicOnErr(r.SetLOCParams(d1, m1, s1, ns, d2, m2, s2, ew, al, sz, hp, vp))
-	return r
-}
-
-func makeRec(name, target, typ string) *models.RecordConfig {
-	r := &models.RecordConfig{
-		Type: typ,
-		TTL:  300,
-	}
-	SetLabel(r, name, "**current-domain**.")
-	r.MustSetTarget(target)
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, dnsv2.TypeLOC, d1, m1, s1, ns, d2, m2, s2, ew, al, sz, hp, vp)
+	panicOnErr(err)
 	return r
 }
 
 func manyA(namePattern, target string, n int) []*models.RecordConfig {
 	recs := []*models.RecordConfig{}
 	for i := range n {
-		recs = append(recs, makeRec(fmt.Sprintf(namePattern, i), target, "A"))
+		r, err := globalDC.NewRecordConfig(fmt.Sprintf(namePattern, i), defaultTTL, dnsv2.TypeA, target)
+		panicOnErr(err)
+		recs = append(recs, r)
 	}
 	return recs
 }
 
 func mx(name string, prio uint16, target string) *models.RecordConfig {
-	r := makeRec(name, target, "MX")
-	r.MxPreference = prio
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, dnsv2.TypeMX, prio, target)
+	panicOnErr(err)
 	return r
 }
 
 func ns(name, target string) *models.RecordConfig {
-	return makeRec(name, target, "NS")
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, dnsv2.TypeNS, target)
+	panicOnErr(err)
+	return r
 }
 
 func naptr(name string, order uint16, preference uint16, flags string, service string, regexp string, target string) *models.RecordConfig {
-	r := makeRec(name, target, "NAPTR")
-	panicOnErr(r.SetTargetNAPTR(order, preference, flags, service, regexp, target))
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, dnsv2.TypeNAPTR, order, preference, flags, service, regexp, target)
+	panicOnErr(err)
 	return r
 }
 
 func openpgpkey(name, target string) *models.RecordConfig {
-	target, err := transform.OPENPGPKEY(target)
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, dnsv2.TypeOPENPGPKEY, target)
 	panicOnErr(err)
-	return makeRec(name, target, "OPENPGPKEY")
+	return r
 }
 
 func ptr(name, target string) *models.RecordConfig {
-	return makeRec(name, target, "PTR")
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, dnsv2.TypePTR, target)
+	panicOnErr(err)
+	return r
 }
 
 func r53alias(name, aliasType, target, evalTargetHealth string) *models.RecordConfig {
-	r := makeRec(name, target, "R53_ALIAS")
-	r.R53Alias = map[string]string{
-		"type":                   aliasType,
-		"evaluate_target_health": evalTargetHealth,
-	}
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, privatetypes.TypeR53ALIAS, aliasType, target, evalTargetHealth)
+	panicOnErr(err)
 	return r
 }
 
 func r53weighted(name, target, rtype string, weight int, setID string) *models.RecordConfig {
-	r := makeRec(name, target, rtype)
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, rtype, target)
+	panicOnErr(err)
 	r.Metadata = map[string]string{
 		"r53_weight":         fmt.Sprintf("%d", weight),
 		"r53_set_identifier": setID,
@@ -615,44 +606,38 @@ func r53weighted(name, target, rtype string, weight int, setID string) *models.R
 }
 
 func rp(name string, m, t string) *models.RecordConfig {
-	rec, err := rtypecontrol.NewRecordConfigFromRaw(rtypecontrol.FromRawOpts{
-		Type: "RP",
-		TTL:  300,
-		Args: []any{name, m, t},
-		DCN:  globalDCN,
-	})
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, dnsv2.TypeRP, m, t)
 	panicOnErr(err)
-	return rec
+	return r
 }
 
 func smimea(name string, usage, selector, matchingtype uint8, target string) *models.RecordConfig {
-	r := makeRec(name, target, "SMIMEA")
-	panicOnErr(r.SetTargetSMIMEA(usage, selector, matchingtype, target))
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, dnsv2.TypeSMIMEA, usage, selector, matchingtype, target)
+	panicOnErr(err)
 	return r
 }
 
 func soa(name string, ns, mbox string, serial, refresh, retry, expire, minttl uint32) *models.RecordConfig {
-	r := makeRec(name, "", "SOA")
-	panicOnErr(r.SetTargetSOA(ns, mbox, serial, refresh, retry, expire, minttl))
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, dnsv2.TypeSOA, ns, mbox, serial, refresh, retry, expire, minttl)
+	panicOnErr(err)
 	return r
 }
 
 func srv(name string, priority, weight, port uint16, target string) *models.RecordConfig {
-	r := makeRec(name, target, "SRV")
-	panicOnErr(r.SetTargetSRV(priority, weight, port, target))
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, dnsv2.TypeSRV, priority, weight, port, target)
+	panicOnErr(err)
 	return r
 }
 
 func sshfp(name string, algorithm uint8, fingerprint uint8, target string) *models.RecordConfig {
-	r := makeRec(name, target, "SSHFP")
-	panicOnErr(r.SetTargetSSHFP(algorithm, fingerprint, target))
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, dnsv2.TypeSSHFP, algorithm, fingerprint, target)
+	panicOnErr(err)
 	return r
 }
 
 func svcb(name string, priority uint16, target string, params string) *models.RecordConfig {
-	r := makeRec(name, target, "SVCB")
-	r.SvcPriority = priority
-	r.SvcParams = params
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, dnsv2.TypeSVCB, priority, target, params)
+	panicOnErr(err)
 	return r
 }
 
@@ -669,10 +654,10 @@ func ovhdmarc(name, target string) *models.RecordConfig {
 }
 
 func makeOvhNativeRecord(name, target, rType string) *models.RecordConfig {
-	r := makeRec(name, "", "TXT")
-	r.Metadata = make(map[string]string)
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, dnsv2.TypeTXT, target)
+	panicOnErr(err)
+	r.Metadata = map[string]string{}
 	r.Metadata["create_ovh_native_record"] = rType
-	r.MustSetTarget(target)
 	return r
 }
 
@@ -749,8 +734,8 @@ func tc(desc string, recs ...*models.RecordConfig) *TestCase {
 }
 
 func txt(name, target string) *models.RecordConfig {
-	r := makeRec(name, "", "TXT")
-	panicOnErr(r.SetTargetTXT(target))
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, dnsv2.TypeTXT, target)
+	panicOnErr(err)
 	return r
 }
 
@@ -761,30 +746,33 @@ func ttl(r *models.RecordConfig, t uint32) *models.RecordConfig {
 }
 
 func tlsa(name string, usage, selector, matchingtype uint8, target string) *models.RecordConfig {
-	r := makeRec(name, target, "TLSA")
-	panicOnErr(r.SetTargetTLSA(usage, selector, matchingtype, target))
+	r, err := globalDC.NewRecordConfig(name, defaultTTL, dnsv2.TypeTLSA, usage, selector, matchingtype, target)
+	panicOnErr(err)
 	return r
 }
 
 func porkbunUrlfwd(name, target, t, includePath, wildcard string) *models.RecordConfig {
-	r := makeRec(name, target, "PORKBUN_URLFWD")
-	r.Metadata = make(map[string]string)
-	r.Metadata["type"] = t
-	r.Metadata["includePath"] = includePath
-	r.Metadata["wildcard"] = wildcard
-	return r
+	rc, err := globalDC.NewRecordConfig(name, defaultTTL, privatetypes.TypePORKBUNURLFWD, target, t, includePath, wildcard)
+	panicOnErr(err)
+	return rc
 }
 
 func url(name, target string) *models.RecordConfig {
-	return makeRec(name, target, "URL")
+	rc, err := globalDC.NewRecordConfig(name, defaultTTL, privatetypes.TypeURL, target, false, false)
+	panicOnErr(err)
+	return rc
 }
 
 func url301(name, target string) *models.RecordConfig {
-	return makeRec(name, target, "URL301")
+	rc, err := globalDC.NewRecordConfig(name, defaultTTL, privatetypes.TypeURL301, target, false, false)
+	panicOnErr(err)
+	return rc
 }
 
 func frame(name, target string) *models.RecordConfig {
-	return makeRec(name, target, "FRAME")
+	rc, err := globalDC.NewRecordConfig(name, defaultTTL, privatetypes.TypeFRAME, target)
+	panicOnErr(err)
+	return rc
 }
 
 func tcEmptyZone() *TestCase {

@@ -6,8 +6,9 @@ import (
 	"runtime/debug"
 
 	"github.com/DNSControl/dnscontrol/v4/commands"
+	_ "github.com/DNSControl/dnscontrol/v4/pkg/privatetypes"
+	_ "github.com/DNSControl/dnscontrol/v4/pkg/privatetypes/rdata"
 	_ "github.com/DNSControl/dnscontrol/v4/pkg/providers/_all"
-	_ "github.com/DNSControl/dnscontrol/v4/pkg/rtype"
 	"github.com/DNSControl/dnscontrol/v4/pkg/version"
 	"github.com/fatih/color"
 )

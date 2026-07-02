@@ -81,10 +81,12 @@ func TestSvcbAutoHintsTargetCombined(t *testing.T) {
 }
 
 func TestDowncase(t *testing.T) {
-	dc := DomainConfig{Records: Records{
-		&RecordConfig{Type: "MX", Name: "lower", target: "targetmx"},
-		&RecordConfig{Type: "MX", Name: "UPPER", target: "TARGETMX"},
-	}}
+	dc, err := NewDomainConfig("example.com")
+	if err != nil {
+		panic("Should not happen")
+	}
+	dc.AddRecordConfig(&RecordConfig{Type: "MX", Name: "lower", target: "targetmx"})
+	dc.AddRecordConfig(&RecordConfig{Type: "MX", Name: "UPPER", target: "TARGETMX"})
 	Downcase(dc.Records)
 	if !dc.Records.HasRecordTypeName("MX", "lower") {
 		t.Errorf("%v: expected (%v) got (%v)\n", dc.Records, false, true)

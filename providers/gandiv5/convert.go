@@ -5,24 +5,23 @@ package gandiv5
 import (
 	"fmt"
 
+	dnsv2 "codeberg.org/miekg/dns"
 	"github.com/DNSControl/dnscontrol/v4/models"
-	"github.com/DNSControl/dnscontrol/v4/pkg/domaintags"
 	"github.com/DNSControl/dnscontrol/v4/pkg/printer"
-	"github.com/DNSControl/dnscontrol/v4/pkg/rtypecontrol"
-	"github.com/DNSControl/dnscontrol/v4/pkg/rtypeinfo"
 	"github.com/DNSControl/dnscontrol/v4/pkg/txtutil"
 	"github.com/go-gandi/go-gandi/livedns"
 )
 
 // nativeToRecord takes a DNS record from Gandi and returns a native RecordConfig struct.
-func nativeToRecords(n livedns.DomainRecord, origin string) (rcs []*models.RecordConfig, err error) {
+func nativeToRecords(dc *models.DomainConfig, n livedns.DomainRecord) (rcs []*models.RecordConfig, err error) {
 	// Gandi returns all the values for a given label/rtype pair in each
 	// livedns.DomainRecord.  In other words, if there are multiple A
 	// records for a label, all the IP addresses are listed in
 	// n.RrsetValues rather than having many livedns.DomainRecord's.
 	// We must split them out into individual records, one for each value.
 
-	dcn := domaintags.MakeDomainNameVarieties(origin)
+	// dcn := domaintags.MakeDomainNameVarieties(origin)
+	origin := dc.Name
 
 	for _, value := range n.RrsetValues {
 		var rc *models.RecordConfig
@@ -30,13 +29,26 @@ func nativeToRecords(n livedns.DomainRecord, origin string) (rcs []*models.Recor
 
 		rtype := n.RrsetType
 
-		if rtypeinfo.IsModernType(rtype) {
-			rc, err = rtypecontrol.NewRecordConfigFromString(n.RrsetName, uint32(n.RrsetTTL), rtype, value, dcn)
+		switch rtype {
+		case "TXT":
+			// Gandi stores/returns TXT values in RFC1035 quoted+escaped
+			// presentation form. Decode them with the same scheme used to
+			// encode on the way out (txtutil, see recordsToNative), then build
+			// the record via the normal maker path so its RDATA/ComparableV3
+			// match a TXT created from dnsconfig.js. The generic dnsv2
+			// presentation parser escapes backslashes differently, which made
+			// TXT records containing backslashes fail to round-trip.
+			var decoded string
+			decoded, err = txtutil.ParseQuoted(value)
 			if err != nil {
-				return nil, fmt.Errorf("unparsable record received from gandi: %w", err)
+				return nil, fmt.Errorf("unparsable TXT received from gandi: %w", err)
+			}
+			rc, err = dc.NewRecordConfig(n.RrsetName, uint32(n.RrsetTTL), dnsv2.TypeTXT, decoded)
+			if err != nil {
+				return nil, fmt.Errorf("unparsable record received from gandi (txt): %w", err)
 			}
 			rc.Original = n
-		} else {
+		default:
 			rc = &models.RecordConfig{
 				TTL:      uint32(n.RrsetTTL),
 				Original: n,
@@ -51,7 +63,7 @@ func nativeToRecords(n livedns.DomainRecord, origin string) (rcs []*models.Recor
 				err = rc.PopulateFromStringFunc(rtype, value, origin, txtutil.ParseQuoted)
 			}
 			if err != nil {
-				return nil, fmt.Errorf("unparsable record received from gandi: %w", err)
+				return nil, fmt.Errorf("unparsable record received from gandi2: %w", err)
 			}
 		}
 		rcs = append(rcs, rc)

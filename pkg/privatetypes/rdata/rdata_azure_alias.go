@@ -1,0 +1,37 @@
+package privatetypesrdata
+
+import (
+	"fmt"
+	"strings"
+
+	dnsv2 "codeberg.org/miekg/dns"
+	"github.com/DNSControl/dnscontrol/v4/pkg/mustbe"
+	"github.com/DNSControl/dnscontrol/v4/pkg/txtutil"
+)
+
+type AZUREALIAS struct {
+	AliasType string
+	Target    string
+}
+
+func (rd AZUREALIAS) Len() int {
+	return len(rd.String())
+}
+
+func (rd AZUREALIAS) String() string {
+	parts := make([]string, 0, 2)
+	parts = append(parts, txtutil.ZoneifyString(rd.AliasType))
+	parts = append(parts, txtutil.ZoneifyString(rd.Target))
+	return strings.Join(parts, " ")
+}
+
+func MakeAZUREALIAS(origin string, _ map[string]string, args ...any) (dnsv2.RDATA, error) {
+	mustbe.ValidArgs(args)
+	if len(args) != 2 {
+		return nil, fmt.Errorf("AZURE_ALIAS expects 2 arguments, got %d: %+v", len(args), args)
+	}
+	return AZUREALIAS{
+		AliasType: mustbe.RawString(args[0]),
+		Target:    mustbe.RawString(args[1]),
+	}, nil
+}

@@ -47,14 +47,20 @@ func (rc *RecordConfig) GetTargetCombinedFunc(encodeFn func(s string) string) st
 // WARNING: How TXT records are handled is buggy but we can't change it because
 // code depends on the bugs. Use Get GetTargetCombinedFunc() instead.
 func (rc *RecordConfig) GetTargetCombined() string {
+	// if rc.Type == "CLOUDFLAREAPI_SINGLE_REDIRECT" {
+	// 	fmt.Printf("DEBUG: Commbined here: %v\n", rc)
+	// }
+	if rc.GetRDATA() != nil {
+		return rc.GetRDATA().String()
+	}
+
 	// Pseudo records:
 	if _, ok := dnsv1.StringToType[rc.Type]; !ok {
 		switch rc.Type { // #rtype_variations
 		case "LUA":
 			return rc.luaCombined()
 		case "R53_ALIAS":
-			// Differentiate between multiple R53_ALIASs on the same label.
-			return fmt.Sprintf("%s atype=%s zone_id=%s evaluate_target_health=%s", rc.target, rc.R53Alias["type"], rc.R53Alias["zone_id"], rc.R53Alias["evaluate_target_health"])
+			return rc.GetRDATA().String()
 		case "AZURE_ALIAS":
 			// Differentiate between multiple AZURE_ALIASs on the same label.
 			return fmt.Sprintf("%s atype=%s", rc.target, rc.AzureAlias["type"])
@@ -89,6 +95,26 @@ func (rc *RecordConfig) zoneFileQuoted() string {
 	if rc.Type == "NAPTR" && rc.GetTargetField() == "" {
 		rc.MustSetTarget(".")
 	}
+
+	if rc.GetRDATA() != nil {
+		return rc.GetRDATA().String()
+	}
+	// if rc.Type == "SVCV" || rc.Type == "HTTPS" {
+	// 	if rc.SvcPriority == 0 {
+	// 		return fmt.Sprintf("%d %s", rc.SvcPriority, rc.GetTargetField())
+	// 	} else {
+	// 		return fmt.Sprintf("%d %s %s", rc.SvcPriority, rc.GetTargetField(), rc.SvcParams)
+	// 	}
+	// }
+	// if rc.Type == "RP" {
+	// 	switch rc.F.(type) {
+	// 	case dnsrdatav2.RP:
+	// 		return fmt.Sprintf("%s %s", rc.F.(dnsrdatav2.RP).Mbox, rc.F.(dnsrdatav2.RP).Txt)
+	// 	default:
+	// 		panic(fmt.Sprintf("unexpected type for RP.zoneFileQuoted: %T", rc.F))
+	// 	}
+	// }
+
 	rr := rc.ToRR()
 	header := rr.Header().String()
 	full := rr.String()
@@ -128,6 +154,9 @@ func (rc *RecordConfig) GetTargetRFC1035Quoted() string {
 
 // GetTargetDebug returns a string with the various fields spelled out.
 func (rc *RecordConfig) GetTargetDebug() string {
+
+	// TODO(tlim): If possible, use .String().
+
 	target := rc.target
 	//if rc.Type == "TXT" {
 	if rc.HasFormatIdenticalToTXT() {

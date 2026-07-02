@@ -1,0 +1,321 @@
+---
+# 65280 to 65534
+types:
+  - name: Adguardhome_A_Passthrough
+    codepoint: 65280
+    fields:
+      - name: Target
+        type: RawString
+    test_data:
+      - name: ""
+        values:
+          Target: ""
+
+  - name: Adguardhome_AAAA_Passthrough
+    codepoint: 65281
+    fields:
+      - name: Target
+        type: RawString
+    test_data:
+      - name: ""
+        values:
+          Target: ""
+
+  - name: Akamaicdn
+    codepoint: 65282
+    fields:
+      - name: Target
+        type: TargetHost
+    test_data:
+      - name: ""
+        values:
+          Target: example.com.
+
+  - name: Akamaitlc
+    codepoint: 65284
+    fields:
+      - name: AnswerType
+        type: RawString
+      - name: Target
+        type: TargetHost
+    test_data:
+      - name: ""
+        values:
+          AnswerType: cname
+          Target: example.com.
+
+  - name: Alias
+    codepoint: 65285
+    fields:
+      - name: Target
+        type: TargetHost
+    test_data:
+      - name: ""
+        values:
+          Target: example.com.
+
+  - name: Azure_Alias
+    codepoint: 65286
+    fields:
+      - name: AliasType
+        type: RawString
+      - name: Target
+        type: RawString
+    test_data:
+      - name: ""
+        values:
+          AliasType: A
+          Target: example.com.
+
+  - name: Bunny_Dns_Pz
+    codepoint: 65287
+    fields:
+      - name: PullZoneID
+        type: Int64
+    test_data:
+      - name: ""
+        values:
+          PullZoneID: 123
+
+# NOTE TO SELF: PullZoneID is an int64.  Should it be a uint16?
+
+  - name: Bunny_Dns_Rdr
+    codepoint: 65320
+    fields: []
+    test_data: []
+
+  - name: Cf_Worker_Route
+    codepoint: 65288
+    fields:
+      - name: When
+        type: RawString
+      - name: Then
+        type: RawString
+    test_data:
+      - name: ""
+        values:
+          When: whenWhen
+          Then: ThenThen
+
+  - name: Cloudflareapi_Single_Redirect
+    codepoint: 65289
+    fields:
+      - name: SRName
+        type: RawString
+      - name: Code
+        type: Uint16
+      - name: SRWhen
+        type: RawString
+      - name: SRThen
+        type: RawString
+    runtimeFields:
+      - name: SRRRulesetID
+        type: RawString
+        structtag: "json:\"sr_rulesetid,omitempty\""
+        comment: "ID of the ruleset containing this rule (populated by API)"
+      - name: SRRRulesetRuleID
+        type: RawString
+        structtag: "json:\"sr_rulesetruleid,omitempty\""
+        comment: "ID of this rule within the ruleset (populated by API)"
+#      - name: SRDisplay
+#        type: RawString
+#        structtag: "json:\"sr_display,omitempty\""
+#        comment: "How is this displayed to the user (SetTarget) for CF_SINGLE_REDIRECT"
+
+    test_data:
+      - name: ""
+        values:
+          SRName: first_rule
+          Code: 301
+          SRWhen: when_string
+          SRThen: then_string
+
+  - name: Cloudns_Wr
+    codepoint: 65290
+    fields:
+      - name: Target
+        type: RawString
+    test_data:
+      - name: ""
+        values:
+          Target: example.com.
+
+  - name: Frame
+    codepoint: 65291
+    fields:
+      - name: Target
+        type: RawString
+    test_data:
+      - name: ""
+        values:
+          Target: example.com.
+
+#  # Loc is not a privatetype, but because of legacy code, we're treating it that
+#  # way. The privatetypesrdata.LOC generates a dnsrdatav2.LOC.  Eventually we'll
+#  # rewrite it.
+#  # helpers.js converts a LOC() to a 12-tuple. We convert that to the 7-tuple of dnsrdatav2.LOC and store the result
+#  # in runtime fields.
+
+#   - name: Loc
+#     codepoint: 65292
+#     fields:
+#     - name: D1
+#       type: Uint8
+#     - name: M1
+#       type: Uint8
+#     - name: S1
+#       type: Float32
+#     - name: Ns
+#       type: RawString
+#     - name: D2
+#       type: Uint8
+#     - name: M2
+#       type: Uint8
+#     - name: S2
+#       type: Float32
+#     - name: Ew
+#       type: RawString
+#     - name: Al
+#       type: Float32
+#     - name: Sz
+#       type: Float32
+#     - name: Hp
+#       type: Float32
+#     - name: Vp
+#       type: Float32
+#     runtimeFields:
+#     - name: LocVersion
+#       type: uint8
+#     - name: LocLatitude
+#       type: uint8
+#     - name: LocLongitude
+#       type: float32
+#     - name: LocAltitude
+#       type: float32
+#     - name: LocSize
+#       type: float32
+#     - name: LocHorizPre
+#       type: float32
+#     - name: LocVertPre
+#       type: float32
+
+  - name: Lua
+    codepoint: 65292
+    fields:
+      - name: LuaType
+        type: RawString
+      - name: LuaPayload
+        type: RawString
+    test_data:
+      - name: ""
+        values:
+          LuaType: A
+          LuaPayload: return_127_0_0_1
+
+  - name: Mikrotik_Fwd
+    codepoint: 65293
+    fields:
+      - name: ForwardTo
+        type: RawString
+    test_data:
+      - name: ""
+        values:
+          ForwardTo: example.com.
+
+  - name: Mikrotik_Nxdomain
+    codepoint: 65294
+    fields: []
+    test_data: []
+
+  - name: Netlify
+    codepoint: 65295
+    fields: []
+    test_data: []
+
+  - name: Netlifyv6
+    codepoint: 65296
+    fields: []
+    test_data: []
+
+  - name: Porkbun_Urlfwd
+    codepoint: 65297
+    fields:
+      - name: Target
+        type: RawString
+      - name: TypeName
+        type: RawString
+      - name: IncludePath
+        type: RawString
+      - name: Wildcard
+        type: RawString
+    test_data:
+      - name: "plain"
+        values:
+          Target: http://example.com
+          TypeName: urlfwd
+          IncludePath: no
+          Wildcard: no
+      - name: "with metadata"
+        values:
+          Target: http://example.com
+          TypeName: urlfwd
+          IncludePath: permanent
+          Wildcard: no
+      - name: "with wildcard"
+        values:
+          Target: http://example.com
+          TypeName: urlfwd
+          IncludePath: no
+          Wildcard: yes
+
+  - name: R53_Alias
+    codepoint: 65298
+    fields:
+      - name: AliasType
+        type: RawString
+      - name: Target
+        type: TargetHost
+    optionalFields:
+      - name: EvalTargetHealth
+        type: RawString
+      - name: ZoneID
+        type: RawString
+    test_data:
+      - name: normal_user
+        values:
+          AliasType: 1
+          Target: alice.
+          EvalTargetHealth: true
+          ZoneID: 1234
+
+  - name: Url
+    codepoint: 65299
+    fields:
+      - name: Location
+        type: RawString
+      - name: PorkbunIncludePath
+        type: Bool
+      - name: PorkbunWildCard
+        type: Bool
+    test_data:
+      - name: ""
+        values:
+          Location: https://example.com/
+          PorkbunIncludePath: true
+          PorkbunWildCard: false
+
+  - name: Url301
+    codepoint: 65300
+    fields:
+      - name: Location
+        type: TargetHost
+      - name: PorkbunIncludePath
+        type: Bool
+      - name: PorkbunWildCard
+        type: Bool
+    test_data:
+      - name: ""
+        values:
+          Location: example.com.
+          PorkbunIncludePath: true
+          PorkbunWildCard: false
