@@ -50,13 +50,6 @@ func TestParsedFiles(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			// if err != conf.PostProcess() {
-			// 	t.Fatal(err)
-			// }
-			// for _, domain := range conf.Domains {
-			// 	domain.FixLegacyDC()
-			// }
-
 			errs := normalize.ValidateAndNormalizeConfig(conf)
 			if len(errs) != 0 {
 				t.Fatal(errs[0])

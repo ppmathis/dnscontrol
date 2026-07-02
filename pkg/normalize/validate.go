@@ -463,7 +463,7 @@ func ValidateAndNormalizeConfig(config *models.DNSConfig) (errs []error) {
 					// canonicalization actually changed it (e.g. a relative or
 					// "@" target expanded to a FQDN), refresh the cached
 					// RDATA/ComparableV3 so they reflect the new target.
-					refreshDerivedFields(rec, domain.Name)
+					rec.RecomputeV3Fields(domain.Name)
 				}
 			case "A", "AAAA":
 				if err := rec.SetTargetIP(rec.GetTargetIP()); err != nil {
@@ -704,9 +704,6 @@ func checkRecordSetHasMultipleTTLs(records []*models.RecordConfig) (errs []error
 	// Find the inconsistencies:
 	m := make(map[string]map[uint32]map[string]bool)
 	for _, r := range records {
-		// if r.Type == "CLOUDFLAREAPI_SINGLE_REDIRECT" {
-		// 	continue
-		// }
 		if !r.IsTTLSignificant() {
 			continue
 		}
@@ -977,7 +974,7 @@ func applyRecordTransforms(domain *models.DomainConfig) error {
 				if err := rec.SetTarget(newIP.String()); err != nil {
 					return err
 				}
-				refreshDerivedFields(rec, domain.Name)
+				rec.RecomputeV3Fields(domain.Name)
 			} else if i > 0 {
 				// any additional ips need identical records with the alternate ip added to the domain
 				cpy, err := rec.Copy()
@@ -987,20 +984,10 @@ func applyRecordTransforms(domain *models.DomainConfig) error {
 				if err := cpy.SetTarget(newIP.String()); err != nil {
 					return err
 				}
-				refreshDerivedFields(cpy, domain.Name)
+				cpy.RecomputeV3Fields(domain.Name)
 				domain.Records = append(domain.Records, cpy)
 			}
 		}
 	}
 	return nil
-}
-
-// refreshDerivedFields recomputes the derived fields (RDATA and ComparableV3)
-// of a record after its target was changed during normalization. SetTarget only
-// updates the raw target string; the cached RDATA/ComparableV3 set at
-// IR-construction time would otherwise still describe the pre-normalization
-// target. This matters when a transform rewrites an A record's IP, or when a
-// relative/"@" CNAME/MX/NS/SRV/ALIAS target is canonicalized to a FQDN.
-func refreshDerivedFields(rec *models.RecordConfig, origin string) {
-	rec.RecomputeV3Fields(origin)
 }

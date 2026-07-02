@@ -21,19 +21,15 @@ func (rc *RecordConfig) targetCombinedSVCBRaw() string {
 
 // SetTargetSVCB sets the SVCB fields.
 func (rc *RecordConfig) SetTargetSVCB(priority uint16, target string, params []dnsv1.SVCBKeyValue) error {
-
 	rc.SvcPriority = priority
-
 	if err := rc.SetTarget(target); err != nil {
 		return err
 	}
-
 	paramsStr := []string{}
 	for _, kv := range params {
 		paramsStr = append(paramsStr, fmt.Sprintf("%s=%s", kv.Key(), kv.String()))
 	}
 	rc.SvcParams = strings.Join(paramsStr, " ")
-
 	if rc.Type == "" {
 		rc.Type = "SVCB"
 	}
@@ -85,7 +81,6 @@ func (rc *RecordConfig) SetTargetSVCBString(origin, contents string) error {
 		return fmt.Errorf("could not parse SVCB record: %w", err)
 	}
 	rc.SetRDATA(rrv2)
-	// rc.ComparableV3 = ""
 
 	switch r := record.(type) {
 	case *dnsv1.HTTPS:

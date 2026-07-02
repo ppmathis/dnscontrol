@@ -6,9 +6,9 @@ import "fmt"
 // operator somewhere up the call chain.
 //
 // Many Make*() functions are declared `func(..., args ...any)` and forward to
-// another `...any` function. The forwarding call must use `f(..., args...)`.
-// If the `...` is omitted, the inner function sees args == []any{ []any{...} }
-// — a single element whose value is itself the original []any. The individual
+// another variadic function. The forwarding call must use `f(..., args...)`.
+// If the `...` is omitted, the called function sees args == []any{ []any{...} }
+// i.e. a single element whose value is itself the original []any. The individual
 // values are then never validated as strings/ints/etc., and the bug surfaces
 // far from its cause.
 //

@@ -218,3 +218,17 @@ Add a function called BuilderROBERT() with this signature:
 ```go
 func BuilderROBERT(dc *DomainConfig, ttl uint32, args []any, subdomain string) (Records, error) {
 ```
+
+## How to manipulate domain/zone names
+
+How to remove a domain from a name?
+
+```go
+txtutil.StripZone()
+```
+
+How to add a domain to a shortname?
+
+```go
+txtutil.Extend()
+```

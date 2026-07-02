@@ -47,9 +47,6 @@ func (rc *RecordConfig) GetTargetCombinedFunc(encodeFn func(s string) string) st
 // WARNING: How TXT records are handled is buggy but we can't change it because
 // code depends on the bugs. Use Get GetTargetCombinedFunc() instead.
 func (rc *RecordConfig) GetTargetCombined() string {
-	// if rc.Type == "CLOUDFLAREAPI_SINGLE_REDIRECT" {
-	// 	fmt.Printf("DEBUG: Commbined here: %v\n", rc)
-	// }
 	if rc.GetRDATA() != nil {
 		return rc.GetRDATA().String()
 	}
@@ -99,21 +96,6 @@ func (rc *RecordConfig) zoneFileQuoted() string {
 	if rc.GetRDATA() != nil {
 		return rc.GetRDATA().String()
 	}
-	// if rc.Type == "SVCV" || rc.Type == "HTTPS" {
-	// 	if rc.SvcPriority == 0 {
-	// 		return fmt.Sprintf("%d %s", rc.SvcPriority, rc.GetTargetField())
-	// 	} else {
-	// 		return fmt.Sprintf("%d %s %s", rc.SvcPriority, rc.GetTargetField(), rc.SvcParams)
-	// 	}
-	// }
-	// if rc.Type == "RP" {
-	// 	switch rc.F.(type) {
-	// 	case dnsrdatav2.RP:
-	// 		return fmt.Sprintf("%s %s", rc.F.(dnsrdatav2.RP).Mbox, rc.F.(dnsrdatav2.RP).Txt)
-	// 	default:
-	// 		panic(fmt.Sprintf("unexpected type for RP.zoneFileQuoted: %T", rc.F))
-	// 	}
-	// }
 
 	rr := rc.ToRR()
 	header := rr.Header().String()

@@ -20,7 +20,6 @@ func nativeToRecords(dc *models.DomainConfig, n livedns.DomainRecord) (rcs []*mo
 	// n.RrsetValues rather than having many livedns.DomainRecord's.
 	// We must split them out into individual records, one for each value.
 
-	// dcn := domaintags.MakeDomainNameVarieties(origin)
 	origin := dc.Name
 
 	for _, value := range n.RrsetValues {
