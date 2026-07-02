@@ -18,7 +18,7 @@ import (
 // a provider's API ("actual") or from user input in dndsconfig.js ("desired").
 type RecordConfig struct {
 
-	// Type is the DNS record type (rtype), all caps, "A", "MX", etc.
+	// Type is the DNS record type (rtype), all caps, "A", "MX", etc. (Deprecated. Use .TypeNum)
 	Type string `json:"type"`
 
 	// TypeNum is the assigned number of the record's type. 1 for A, 5 for CNAME, etc. See dnsv2.TypeToString and dnsv2.StringToType.

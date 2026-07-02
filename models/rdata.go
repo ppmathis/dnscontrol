@@ -13,6 +13,7 @@ import (
 func (rc *RecordConfig) SetRDATA(rd dnsv2.RDATA) {
 	rc.rdata = assureNotPointerRDATA(rd)
 	rc.ValidateRDATA()
+	rc.ComparableV3 = ""
 }
 
 // GetRDATA is a getter for RecordConfig.rdata.
@@ -23,6 +24,7 @@ func (rc *RecordConfig) GetRDATA() (rd dnsv2.RDATA) {
 // ClearRDATA sets rc.rdata to nil. This is a workaround and will eventually be eliminated.
 func (rc *RecordConfig) ClearRDATA() {
 	rc.rdata = nil
+	rc.ComparableV3 = ""
 }
 
 // ValidateRDATA is used to verify that .rdata didn't accidentally get set to

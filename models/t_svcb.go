@@ -50,7 +50,6 @@ func (rc *RecordConfig) SetTargetSVCB(priority uint16, target string, params []d
 		return fmt.Errorf("failed to create RDATA for SVCB record: %w", err)
 	}
 	rc.SetRDATA(rd)
-	rc.ComparableV3 = ""
 	rc.FixUp("")
 
 	return nil
@@ -211,7 +210,6 @@ func SVCBHydrateDesiredEchIgnore(existing, desired Records) {
 				if found {
 					rd.Value = newPairs
 					rec.SetRDATA(rd)
-					rec.ComparableV3 = ""
 					rec.FixUp("")
 					err := backfill(rec)
 					if err != nil {

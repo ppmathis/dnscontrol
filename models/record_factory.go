@@ -92,20 +92,6 @@ func (dc *DomainConfig) newRecordConfigFromDnsconfigjs(name string, ttl uint32, 
 	return newRecordConfigHelper(dc.Name, name, ttl, typeNum, rd, metadata)
 }
 
-// // newRecordConfigHelper creates a RecordConfig using a dnsv2.RDATA.
-// // This is risky because it assumes the caller has done a lot of the prep work
-// // that is automatic with NewRecordConfig and NewRecordConfigParse.  In
-// // partiular, any hostnames must be converted to ASCII (IDN PunyCode) and must
-// // be FQDNs (usually with a "." at the end, but not for all record types!) and
-// // not shortnames.
-//
-// // We're commenting this out until someone actually needs this functionality, most likely AXFRDDNS.
-// // (Note to self: Maybe it should take an dnsv2.RR so that it can validate the label, ttl, etc?)
-//
-//	func (dc *DomainConfig) NewRecordConfigRDATA(name string, ttl uint32, typeNum uint16, rd dnsv2.RDATA) (*RecordConfig, error) {
-//		return newRecordConfigHelper(origin, ttl, typeNum, rd)
-//	}
-
 // newRecordConfigHelper is a helper.  if rd != nil, args is ignored.
 // All valid RecordConfig structs come through this function. Everything else is questionable.
 func newRecordConfigHelper(origin, name string, ttl uint32, typeNum uint16, rd dnsv2.RDATA, metadata map[string]string) (*RecordConfig, error) {

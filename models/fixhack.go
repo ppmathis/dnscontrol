@@ -47,29 +47,32 @@ func (rc *RecordConfig) FixUp(origin string) {
 	// Populate .RDATA if needed:
 	if rc.GetRDATA() == nil {
 
-		//var err error
 		switch rc.Type {
 
-		case "BUNNY_DNS_PZ":
-			rc.SetRDATA(&privatetypesrdata.BUNNYDNSPZ{})
-		case "LUA":
-			rc.SetRDATA(&privatetypesrdata.LUA{})
-		case "CLOUDFLAREAPI_SINGLE_REDIRECT":
-			rc.SetRDATA(&privatetypesrdata.CLOUDFLAREAPISINGLEREDIRECT{})
-		case "CLOUDNS_WR":
-			rc.SetRDATA(&privatetypesrdata.CLOUDNSWR{})
-		case "NETLIFY":
-			rc.SetRDATA(&privatetypesrdata.NETLIFY{})
-		case "NETLIFYV6":
-			rc.SetRDATA(&privatetypesrdata.NETLIFYV6{})
+		// These record types have no fields in RecordConfig (other than .rdata) to backfill.
+
 		case "AKAMAICDN":
 			rc.SetRDATA(&privatetypesrdata.AKAMAICDN{})
 		case "AKAMAITLC":
 			rc.SetRDATA(&privatetypesrdata.AKAMAITLC{})
+		case "BUNNY_DNS_PZ":
+			rc.SetRDATA(&privatetypesrdata.BUNNYDNSPZ{})
 		case "BUNNY_DNS_RDR":
 			rc.SetRDATA(&privatetypesrdata.BUNNYDNSRDR{})
+		case "CLOUDFLAREAPI_SINGLE_REDIRECT":
+			rc.SetRDATA(&privatetypesrdata.CLOUDFLAREAPISINGLEREDIRECT{})
+		case "CLOUDNS_WR":
+			rc.SetRDATA(&privatetypesrdata.CLOUDNSWR{})
+		case "LUA":
+			rc.SetRDATA(&privatetypesrdata.LUA{})
+		case "NETLIFY":
+			rc.SetRDATA(&privatetypesrdata.NETLIFY{})
+		case "NETLIFYV6":
+			rc.SetRDATA(&privatetypesrdata.NETLIFYV6{})
 		case "IMPORT_TRANSFORM":
 			rc.ClearRDATA()
+
+			// These record types need to pull from their legacy fields in RecordConfig to make the RDATA.
 
 		case "A":
 			rd, err := MakeA(origin, nil, rc.GetTargetIP())
@@ -248,7 +251,8 @@ func (rc *RecordConfig) FixUp(origin string) {
 		}
 	}
 
-	// .ComparableV3:
+	// Generate .ComparableV3 if empty:
+
 	if rc.ComparableV3 == "" {
 		switch rc.Type {
 		case "SOA":
