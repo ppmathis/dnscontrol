@@ -28,7 +28,9 @@ func backfill(rc *RecordConfig) error {
 		// no-op
 
 	case dnsrdatav2.CAA:
-		rc.SetTargetCAA(rd.Flag, rd.Tag, rd.Value)
+		rc.CaaFlag = rd.Flag
+		rc.CaaTag = rd.Tag
+		rc.SetTarget(rd.Value)
 	case privatetypesrdata.CFWORKERROUTE:
 		rc.SetTarget(fmt.Sprintf("%s,%s", rd.When, rd.Then))
 	case privatetypesrdata.CLOUDFLAREAPISINGLEREDIRECT:
@@ -41,10 +43,9 @@ func backfill(rc *RecordConfig) error {
 	case dnsrdatav2.DNAME:
 		rc.SetTarget(rd.Target)
 	case dnsrdatav2.DS:
-		rc.SetTargetDS(rd.KeyTag, rd.Algorithm, rd.DigestType, rd.Digest)
+		rc.DsKeyTag, rc.DsAlgorithm, rc.DsDigestType, rc.DsDigest = rd.KeyTag, rd.Algorithm, rd.DigestType, rd.Digest
 	case dnsrdatav2.DNSKEY:
-		rc.SetTargetDNSKEY(rd.Flags, rd.Protocol, rd.Algorithm, rd.PublicKey)
-
+		rc.DnskeyFlags, rc.DnskeyProtocol, rc.DnskeyAlgorithm, rc.DnskeyPublicKey = rd.Flags, rd.Protocol, rd.Algorithm, rd.PublicKey
 	case privatetypesrdata.FRAME:
 		rc.SetTarget(rd.Target)
 

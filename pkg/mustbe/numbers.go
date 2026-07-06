@@ -20,6 +20,11 @@ func Uint8(arg any) uint8 {
 			panic(fmt.Sprintf("value %q overflows uint8", arg))
 		}
 		return uint8(v)
+	case uint32:
+		if v > math.MaxUint8 {
+			panic(fmt.Sprintf("value %q overflows uint8", arg))
+		}
+		return uint8(v)
 	case uint:
 		if v > math.MaxUint8 {
 			panic(fmt.Sprintf("value %q overflows uint8", arg))
