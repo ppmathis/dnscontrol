@@ -7,7 +7,7 @@ import (
 	privatetypesrdata "github.com/DNSControl/dnscontrol/v4/pkg/privatetypes/rdata"
 )
 
-func backfill(rc *RecordConfig) error {
+func (rc *RecordConfig) copyRDtoLegacyFields() error {
 	// Hack to back-fill legacy fields. This will go away eventually.
 	switch rd := rc.GetRDATA().(type) {
 	case privatetypesrdata.ADGUARDHOMEAPASSTHROUGH:
@@ -51,6 +51,9 @@ func backfill(rc *RecordConfig) error {
 
 	case dnsrdatav2.LOC:
 		rc.SetTargetLOC(rd.Version, rd.Latitude, rd.Longitude, rd.Altitude, rd.Size, rd.HorizPre, rd.VertPre)
+	case privatetypesrdata.LUA:
+		rc.LuaRType = rd.LuaType
+		rc.SetTarget(rd.LuaPayload)
 
 	case privatetypesrdata.MIKROTIKFWD:
 		rc.SetTarget(rd.ForwardTo)
@@ -85,7 +88,9 @@ func backfill(rc *RecordConfig) error {
 		}
 		rc.R53Alias["type"] = rd.AliasType
 		rc.SetTarget(rd.Target)
-		rc.R53Alias["zone_id"] = rd.ZoneID
+		if rd.ZoneID != "" {
+			rc.R53Alias["zone_id"] = rd.ZoneID
+		}
 		rc.R53Alias["evaluate_target_health"] = rd.EvalTargetHealth
 
 	case dnsrdatav2.SMIMEA:
@@ -117,7 +122,7 @@ func backfill(rc *RecordConfig) error {
 		rc.SetTarget(rd.Location)
 
 	default:
-		return fmt.Errorf("assertion failed: NewRecordConfig back-fill has not implemented type %T", rd)
+		return fmt.Errorf("assertion failed: copyRDtoLegacyFields has not implemented type %T", rd)
 	}
 
 	return nil

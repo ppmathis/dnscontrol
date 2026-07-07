@@ -51,7 +51,6 @@ func (rc *RecordConfig) SetTargetSVCB(priority uint16, target string, params []d
 		return fmt.Errorf("failed to create RDATA for SVCB record: %w", err)
 	}
 	rc.SetRDATA(rd)
-	rc.FixUp("")
 
 	return nil
 }
@@ -98,7 +97,6 @@ func (rc *RecordConfig) SetTargetSVCBString(origin, contents string) error {
 		}
 		rc.SetRDATA(rd)
 	}
-	rc.FixUp("")
 
 	return nil
 }
@@ -130,7 +128,6 @@ func (rc *RecordConfig) GetSVCBValue() []dnsv1.SVCBKeyValue {
 // TODO(tlim): THIS NEEDS A UNIT TEST!
 func stringToSvcbv2Values(origin string, contents string) ([]svcbv2.Pair, error) {
 	fields := strings.Fields(contents)
-	fmt.Printf("DEBUG: stringToSvcbv2Values: origin=%q contents=%q fields=%v\n", origin, contents, fields)
 
 	var result []svcbv2.Pair
 
@@ -186,7 +183,6 @@ func convertSVCBv1v2(params []dnsv1.SVCBKeyValue) ([]svcbv2.Pair, error) {
 		if len(vV1) > 2 && vV1[0] == '"' && vV1[len(vV1)-1] == '"' {
 			panic("V has quotes")
 		}
-		//fmt.Printf("DEBUG: convertSVCBv1v2: k=%s keyCode=%d v1=%s\n", kV1, keyCodeV2, vV1)
 
 		pairFn := svcbv2.KeyToPair(keyCodeV2)
 		if pairFn == nil {
@@ -241,17 +237,10 @@ func SVCBHydrateDesiredEchIgnore(existing, desired Records) {
 				// if eValue, ok := cache[k]; ok {
 				rd := rec.GetRDATA().(dnsrdatav2.SVCB)
 				desiredPairs := rd.Value
-				// fmt.Printf("DEBUG: SVCB %q exists in existing (%q) and desired (%v)\n", k, b64.StdEncoding.EncodeToString(eValue), desiredPairs)
 				newPairs, found := svcbReplaceIGNOREWithData(desiredPairs, cache, rec)
 				if found {
 					rd.Value = newPairs
 					rec.SetRDATA(rd)
-					rec.FixUp("")
-					err := backfill(rec)
-					if err != nil {
-						panic(err)
-					}
-					// fmt.Printf("DEBUG: NEW SVCB %s\n", rec.String())
 				}
 			}
 		}
@@ -260,7 +249,6 @@ func SVCBHydrateDesiredEchIgnore(existing, desired Records) {
 
 func svcbEncKey(rec *RecordConfig) string {
 	rd := rec.GetRDATA().(dnsrdatav2.SVCB)
-	//return fmt.Sprintf("%s %v %s", rec.NameFQDN, rd.Priority, rd.Target)
 	return fmt.Sprintf("%s:%v", rec.NameFQDN, rd.Priority)
 }
 
@@ -292,24 +280,14 @@ func svcbReplaceIGNOREWithData(pairs []svcbv2.Pair, cache map[string][]byte, rec
 	found := false
 
 	for _, p := range pairs {
-		// fmt.Printf("DEBUG: svcb copying %s=%v\n", svcbv2.KeyToString(svcbv2.PairToKey(p)), p)
-		// pstr := fmt.Sprintf("%v", p)
-		// if pstr == "1000" {
-		// 	fmt.Printf("HERE\n")
-		// }
 		switch v := p.(type) {
 		case *svcbv2.ECHCONFIG:
-			//result = append(result, p)
-			// fmt.Printf("DEBUG ech=%v\n", b64.StdEncoding.EncodeToString(v.ECH))
 			if bytes.Equal(v.ECH, []byte{215, 77, 52}) { // "1000"
 				found = true
-				// fmt.Printf("DEBUG: ECH! FOUND %v\n", v)
 				ech := p.(*svcbv2.ECHCONFIG)
 				ech.ECH = cache[svcbEncKey(rec)]
 				result = append(result, ech)
-
 			} else {
-				// fmt.Printf("DEBUG: ECH! NOT FOUND %v\n", v)
 				result = append(result, p)
 			}
 
@@ -318,9 +296,7 @@ func svcbReplaceIGNOREWithData(pairs []svcbv2.Pair, cache map[string][]byte, rec
 		}
 	}
 
-	// Rebuild .ComparableV3 no matter what.
-	rec.ComparableV3 = ""
-	rec.FixUp("")
+	rec.RegenerateComparableV3()
 
 	return result, found
 }
