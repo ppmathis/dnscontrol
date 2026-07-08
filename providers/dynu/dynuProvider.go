@@ -286,12 +286,6 @@ func toRc(r *dynuRecord, domain string) (*models.RecordConfig, error) {
 		// cannot derive them (e.g. when the rtype package init has not run).
 		mbox := ensureTrailingDot(r.MailBox)
 		txt := ensureTrailingDot(r.TxtDomainName)
-		// rc.F = &dnsv1.RP{
-		// 	Mbox: mbox,
-		// 	Txt:  txt,
-		// }
-		// rc.ZonefilePartial = mbox + " " + txt
-		// rc.Comparable = rc.ZonefilePartial
 		rd, err := models.MakeRP(domain, nil, mbox, txt)
 		if err == nil {
 			rc.SetRDATA(rd)

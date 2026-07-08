@@ -486,8 +486,7 @@ func (c *hednsProvider) GetZoneRecords(dc *models.DomainConfig) (models.Records,
 		}
 
 		var rc *models.RecordConfig
-		if false {
-		} else {
+		{
 			rc = &models.RecordConfig{Type: rec.Type, TTL: rec.TTL}
 			rc.SetLabelFromFQDN(rec.Name, domain)
 			switch rec.Type {
