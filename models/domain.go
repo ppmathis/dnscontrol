@@ -98,6 +98,16 @@ func (dc *DomainConfig) PopulateNamesFromRaw(rawname string) {
 	dc.UniqueName = dcn.UniqueName
 }
 
+func (dc *DomainConfig) PopulateNamesFromRaw(rawname string) {
+	dcn := domaintags.MakeDomainNameVarieties(rawname)
+	dc.Name = dcn.NameASCII
+	dc.Tag = dcn.Tag
+	dc.NameRaw = dcn.NameRaw
+	dc.NameUnicode = dcn.NameUnicode
+	dc.DisplayName = dcn.DisplayName
+	dc.UniqueName = dcn.UniqueName
+}
+
 // GetSplitHorizonNames returns the domain's name, uniquename, and tag.
 // Deprecated: use .Name, .Uniquename, and .Tag directly instead.
 func (dc *DomainConfig) GetSplitHorizonNames() (name, uniquename, tag string) {
@@ -234,6 +244,18 @@ func (dc *DomainConfig) StorePopulateCorrections(providerName string, correction
 		dc.pendingPopulateCorrections = make(map[string][]*Correction, 1)
 	}
 	dc.pendingPopulateCorrections[providerName] = append(dc.pendingPopulateCorrections[providerName], corrections...)
+}
+
+func NewDomainConfig(name string) (*DomainConfig, error) {
+	if strings.HasSuffix(name, ".") {
+		return nil, fmt.Errorf("do not call NewDomainName with trailing dot: %q", name)
+	}
+	dc := &DomainConfig{
+		Metadata: map[string]string{}, // Initialize so that nil checking is not required later.
+	}
+	dc.PopulateNamesFromRaw(name)
+
+	return dc, nil
 }
 
 // GetPopulateCorrections returns zone corrections in a thread-safe way.

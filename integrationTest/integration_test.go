@@ -33,6 +33,7 @@ func TestMakeTests(t *testing.T) {
 		t.FailNow()
 	}
 	globalDC = dc
+	globalDCN = dc.DomainNameVarieties()
 
 	debug.SetTraceback("all")
 
