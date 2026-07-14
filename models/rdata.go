@@ -7,6 +7,9 @@ import (
 
 	dnsv2 "codeberg.org/miekg/dns"
 	dnsrdatav2 "codeberg.org/miekg/dns/rdata"
+
+	_ "github.com/DNSControl/dnscontrol/v4/pkg/privatetypes"
+	_ "github.com/DNSControl/dnscontrol/v4/pkg/privatetypes/rdata"
 )
 
 // SetRDATA is a setter for RecordConfig.rdata.
