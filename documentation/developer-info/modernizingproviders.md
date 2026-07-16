@@ -150,12 +150,13 @@ if err != nil { whatever }
 
 `rc.GetTargetCombinedFunc(..., MyFunc)` is now:
 
-NEW:
-
 ```
-t := MyFunc(rc.GetTargetTXTJoined())
-or maybe
-t := MyFunc(rc.GetTargetTXTSegmented())
+switch rType {
+case "TXT":
+    t := MyFunc(rc.GetTargetTXTJoined())
+default:
+    t := rc.GetRDATA().String()
+}
 ```
 
 
