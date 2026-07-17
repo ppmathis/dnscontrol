@@ -1307,9 +1307,6 @@ var ADGUARDHOME_AAAA_PASSTHROUGH = recordBuilder(
     'ADGUARDHOME_AAAA_PASSTHROUGH'
 );
 
-var URL = recordBuilder('URL');
-var URL301 = recordBuilder('URL301');
-var FRAME = recordBuilder('FRAME');
 var CLOUDNS_WR = recordBuilder('CLOUDNS_WR');
 /**
  * @deprecated Please use URL or URL301 instead
@@ -2383,6 +2380,7 @@ var DHCID = rawrecordBuilder('DHCID');
 var DNAME = rawrecordBuilder('DNAME');
 var DNSKEY = rawrecordBuilder('DNSKEY');
 var DS = rawrecordBuilder('DS');
+var FRAME = rawrecordBuilder('FRAME');
 var HTTPS = rawrecordBuilder('HTTPS');
 var LOC = rawrecordBuilder('LOC');
 var MX = rawrecordBuilder('MX');
@@ -2399,3 +2397,5 @@ var SSHFP = rawrecordBuilder('SSHFP');
 var SVCB = rawrecordBuilder('SVCB');
 var TLSA = rawrecordBuilder('TLSA');
 var TXT = rawrecordBuilder('TXT');
+var URL = rawrecordBuilder('URL');
+var URL301 = rawrecordBuilder('URL301');
