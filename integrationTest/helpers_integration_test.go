@@ -242,7 +242,7 @@ func makeChanges(t *testing.T, prv providers.DNSServiceProvider, dc *models.Doma
 				}
 				t.FailNow()
 			}
-		} else if (len(corrections) == 0 && expectChanges) && (tst.Desc != "Empty") {
+		} else if (len(corrections) == 0 && expectChanges) && (tst.Desc != "Empty") && !tst.ChangesOptional {
 			t.Fatalf("Expected changes, but got none")
 		}
 		for _, c := range corrections {
@@ -353,11 +353,18 @@ type TestCase struct {
 	Unmanaged       []*models.UnmanagedConfig
 	UnmanagedUnsafe bool // DISABLE_IGNORE_SAFETY_CHECK
 	Changeless      bool // set to true if any changes would be an error
+	ChangesOptional bool // set to true if either changes or no changes are acceptable
 }
 
 // ExpectNoChanges indicates that no changes is not an error, it is a requirement.
 func (tc *TestCase) ExpectNoChanges() *TestCase {
 	tc.Changeless = true
+	return tc
+}
+
+// AllowNoChanges indicates that an already-converged first run is acceptable.
+func (tc *TestCase) AllowNoChanges() *TestCase {
+	tc.ChangesOptional = true
 	return tc
 }
 
