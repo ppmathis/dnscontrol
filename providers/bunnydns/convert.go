@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	dnsv2 "codeberg.org/miekg/dns"
+	dnsrdatav2 "codeberg.org/miekg/dns/rdata"
 	"github.com/DNSControl/dnscontrol/v5/models"
 	"github.com/DNSControl/dnscontrol/v5/pkg/privatetypes"
 	privatetypesrdata "github.com/DNSControl/dnscontrol/v5/pkg/privatetypes/rdata"
@@ -16,31 +17,41 @@ var fqdnTypes = []recordType{recordTypeCNAME, recordTypeHTTPS, recordTypeMX, rec
 var nullTypes = []recordType{recordTypeHTTPS, recordTypeMX, recordTypeSVCB}
 
 func fromRecordConfig(rc *models.RecordConfig) (*record, error) {
+
+	ttl := rc.TTL
+	if rc.Type == "NS" {
+		ttl = 0
+	}
+
 	r := record{
-		Type:  recordTypeFromString(rc.Type),
-		Name:  rc.GetLabel(),
-		Value: rc.GetTargetField(),
-		TTL:   rc.TTL,
+		Type: recordTypeFromString(rc.Type),
+		Name: rc.GetLabel(),
+		TTL:  ttl,
 	}
 
 	switch r.Type {
-	case recordTypeNS:
-		if r.Name == "" {
-			r.TTL = 0
-		}
 	case recordTypeSRV:
-		r.Priority = rc.SrvPriority
-		r.Weight = rc.SrvWeight
-		r.Port = rc.SrvPort
+		rd := rc.GetRDATA().(dnsrdatav2.SRV)
+		r.Priority = rd.Priority
+		r.Weight = rd.Weight
+		r.Port = rd.Port
+		r.Value = rd.Target
 	case recordTypeCAA:
-		r.Flags = rc.CaaFlag
-		r.Tag = rc.CaaTag
+		rd := rc.GetRDATA().(dnsrdatav2.CAA)
+		r.Flags = rd.Flag
+		r.Tag = rd.Tag
+		r.Value = rd.Value
 	case recordTypeMX:
-		r.Priority = rc.MxPreference
+		rd := rc.GetRDATA().(dnsrdatav2.MX)
+		r.Priority = rd.Preference
+		r.Value = rd.Mx
 	case recordTypeSVCB, recordTypeHTTPS:
-		r.Priority = rc.SvcPriority
+		rd := rc.GetRDATA().(dnsrdatav2.SVCB)
+		r.Priority = rd.Priority
+		r.Value = rd.Target
 	case recordTypeTLSA:
-		r.Value = fmt.Sprintf("%d %d %d %s", rc.TlsaUsage, rc.TlsaSelector, rc.TlsaMatchingType, rc.GetTargetField())
+		//r.Value = fmt.Sprintf("%d %d %d %s", rc.TlsaUsage, rc.TlsaSelector, rc.TlsaMatchingType, rc.GetTargetField())
+		r.Value = rc.GetRDATA().String()
 	case recordTypePullZone:
 		// When creating Pull Zone records, the API expects an integer PullZoneId field,
 		// while the Value field should be empty.
@@ -50,6 +61,8 @@ func fromRecordConfig(rc *models.RecordConfig) (*record, error) {
 		}
 		r.PullZoneID = rdata.PullZoneID
 		r.Value = ""
+	default:
+		r.Value = rc.GetRDATA().String()
 	}
 
 	// While Bunny DNS does not use trailing dots, it still accepts and even preserves them for certain record types.
