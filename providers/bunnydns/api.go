@@ -10,6 +10,7 @@ import (
 
 	"slices"
 
+	dnsv2 "codeberg.org/miekg/dns"
 	"github.com/DNSControl/dnscontrol/v5/models"
 	"github.com/DNSControl/dnscontrol/v5/pkg/printer"
 )
@@ -60,20 +61,17 @@ type getZoneResponse struct {
 
 type queryParams map[string]string
 
-func (b *bunnydnsProvider) getImplicitRecordConfigs(zone *zone) (models.Records, error) {
+func (b *bunnydnsProvider) getImplicitRecordConfigs(dc *models.DomainConfig, zone *zone) (models.Records, error) {
 	nameservers := zone.Nameservers()
 	records := make(models.Records, 0, len(nameservers))
 
 	// NS records on the zone apex must be implicitly added, as Bunny DNS does not expose them via API
 	for _, ns := range nameservers {
-		rc := &models.RecordConfig{
-			Type:     "NS",
-			Original: &record{},
-		}
-		rc.SetLabelFromFQDN(zone.Domain, zone.Domain)
-		if err := rc.SetTarget(ns + "."); err != nil {
+		rc, err := dc.NewRecordConfig("@", 0, dnsv2.TypeNS, ns+".")
+		if err != nil {
 			return nil, err
 		}
+		rc.Original = &record{}
 
 		records = append(records, rc)
 	}

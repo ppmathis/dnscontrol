@@ -2,13 +2,14 @@ package bunnydns
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"slices"
 
+	dnsv2 "codeberg.org/miekg/dns"
 	"github.com/DNSControl/dnscontrol/v5/models"
-	dnsutilv1 "github.com/miekg/dns/dnsutil"
+	"github.com/DNSControl/dnscontrol/v5/pkg/privatetypes"
+	privatetypesrdata "github.com/DNSControl/dnscontrol/v5/pkg/privatetypes/rdata"
 )
 
 var fqdnTypes = []recordType{recordTypeCNAME, recordTypeHTTPS, recordTypeMX, recordTypeNS, recordTypePTR, recordTypeSRV, recordTypeSVCB}
@@ -43,11 +44,11 @@ func fromRecordConfig(rc *models.RecordConfig) (*record, error) {
 	case recordTypePullZone:
 		// When creating Pull Zone records, the API expects an integer PullZoneId field,
 		// while the Value field should be empty.
-		pullZoneID, err := strconv.ParseInt(rc.GetTargetField(), 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("invalid Pull Zone ID for BUNNY_DNS_PZ: %w", err)
+		rdata, ok := rc.GetRDATA().(privatetypesrdata.BUNNYDNSPZ)
+		if !ok {
+			return nil, fmt.Errorf("invalid RDATA for BUNNY_DNS_PZ")
 		}
-		r.PullZoneID = pullZoneID
+		r.PullZoneID = rdata.PullZoneID
 		r.Value = ""
 	}
 
@@ -73,13 +74,9 @@ func fromRecordConfig(rc *models.RecordConfig) (*record, error) {
 	return &r, nil
 }
 
-func toRecordConfig(domain string, r *record) (*models.RecordConfig, error) {
-	rc := models.RecordConfig{
-		Type:     recordTypeToString(r.Type),
-		TTL:      r.TTL,
-		Original: r,
-	}
-	rc.SetLabel(r.Name, domain)
+func toRecordConfig(dc *models.DomainConfig, r *record) (*models.RecordConfig, error) {
+	rtype := recordTypeToString(r.Type)
+	label := dc.LabelFromShort(r.Name)
 
 	// Bunny DNS always operates with fully-qualified names and does not use any trailing dots.
 	// If a record already contains a trailing dot, which the provider UI also accepts, the record value is left as-is.
@@ -89,38 +86,45 @@ func toRecordConfig(domain string, r *record) (*models.RecordConfig, error) {
 	recordParts := strings.SplitN(recordValue, " ", 2)
 
 	if slices.Contains(fqdnTypes, r.Type) && !strings.HasSuffix(recordParts[0], ".") {
-		recordParts[0] = dnsutilv1.AddOrigin(recordParts[0]+".", domain)
+		recordParts[0] = dc.ToFqdnWithDot(recordParts[0] + ".")
 		recordValue = strings.Join(recordParts, " ")
 	}
 
+	var rc *models.RecordConfig
 	var err error
-	switch rc.Type {
+	switch rtype {
 	case "BUNNY_DNS_PZ":
 		// When reading Pull Zone records, the API provides the PullZoneId in the LinkName field as string.
 		if r.LinkName == "" {
 			return nil, fmt.Errorf("missing Pull Zone ID (LinkName) for BUNNY_DNS_PZ")
 		}
-		err = rc.SetTarget(r.LinkName)
+		rc, err = dc.NewRecordConfig(label, r.TTL, privatetypes.TypeBUNNYDNSPZ, r.LinkName)
 	case "BUNNY_DNS_RDR":
-		err = rc.SetTarget(r.Value)
+		rc, err = dc.NewRecordConfig(label, r.TTL, privatetypes.TypeBUNNYDNSRDR)
+		if err == nil {
+			err = rc.SetTarget(r.Value)
+		}
 	case "CAA":
-		err = rc.SetTargetCAA(r.Flags, r.Tag, recordValue)
+		rc, err = dc.NewRecordConfig(label, r.TTL, dnsv2.TypeCAA, r.Flags, r.Tag, recordValue)
 	case "MX":
-		err = rc.SetTargetMX(r.Priority, recordValue)
+		rc, err = dc.NewRecordConfig(label, r.TTL, dnsv2.TypeMX, r.Priority, recordValue)
 	case "SRV":
-		err = rc.SetTargetSRV(r.Priority, r.Weight, r.Port, recordValue)
+		rc, err = dc.NewRecordConfig(label, r.TTL, dnsv2.TypeSRV, r.Priority, r.Weight, r.Port, recordValue)
 	case "SVCB", "HTTPS":
-		err = rc.SetTargetSVCBString(r.Name, fmt.Sprintf("%d %s", r.Priority, recordValue))
+		rc, err = dc.NewRecordConfigParse(label, r.TTL, rtype, fmt.Sprintf("%d %s", r.Priority, recordValue))
 	case "TLSA":
-		err = rc.SetTargetTLSAString(recordValue)
+		rc, err = dc.NewRecordConfigParse(label, r.TTL, dnsv2.TypeTLSA, recordValue)
+	case "TXT":
+		rc, err = dc.NewRecordConfig(label, r.TTL, dnsv2.TypeTXT, recordValue)
 	default:
-		err = rc.PopulateFromStringFunc(rc.Type, recordValue, domain, nil)
+		rc, err = dc.NewRecordConfigParse(label, r.TTL, rtype, recordValue)
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	return &rc, nil
+	rc.Original = r
+	return rc, nil
 }
 
 type recordType int

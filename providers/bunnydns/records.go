@@ -23,7 +23,7 @@ func (b *bunnydnsProvider) GetZoneRecords(dc *models.DomainConfig) (models.Recor
 		return nil, err
 	}
 
-	implicitRecs, err := b.getImplicitRecordConfigs(zone)
+	implicitRecs, err := b.getImplicitRecordConfigs(dc, zone)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +45,7 @@ func (b *bunnydnsProvider) GetZoneRecords(dc *models.DomainConfig) (models.Recor
 			continue
 		}
 
-		rc, err := toRecordConfig(zone.Domain, nativeRec)
+		rc, err := toRecordConfig(dc, nativeRec)
 		if err != nil {
 			return nil, err
 		}
