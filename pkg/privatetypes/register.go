@@ -80,7 +80,7 @@ func GetAllTypeNames() []string {
 
 // IsPrivateType returns true if the codepoint is for a private type.
 func IsPrivateType(codepoint uint16) bool {
-	if codepoint > 65280 {
+	if codepoint >= 65280 {
 		_, ok := dnsv2.TypeToString[codepoint]
 		if ok {
 			return true
