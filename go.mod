@@ -2,8 +2,6 @@ module github.com/DNSControl/dnscontrol/v5
 
 go 1.26
 
-retract v5.8.0
-
 require (
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.32 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
