@@ -136,7 +136,7 @@ func toRecordConfig(dc *models.DomainConfig, r *record) (*models.RecordConfig, e
 		return nil, err
 	}
 
-	rc.Original = r
+	rc.Original = r.ID
 	return rc, nil
 }
 

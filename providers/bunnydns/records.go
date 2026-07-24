@@ -133,7 +133,7 @@ func (b *bunnydnsProvider) mkChangeCorrection(zoneID int64, oldRec, newRec *mode
 	return &models.Correction{
 		Msg: msg,
 		F: func() error {
-			existingID := oldRec.Original.(*record).ID
+			existingID := oldRec.Original.(string)
 			if existingID == 0 {
 				return errors.New("BUNNY_DNS: cannot change implicit records")
 			}
