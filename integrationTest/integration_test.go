@@ -484,6 +484,7 @@ func makeTests() []*TestGroup {
 		testgroup("NS only APEX",
 			not(
 				"AZURE_PRIVATE_DNS", // Apex NS records are managed by Azure.
+				"BUNNY_DNS",         // Apex NS records are managed by BunnyDNS.
 				"DNSCALE",           // Apex NS records are managed by DNScale.
 				"DNSIMPLE",          // Does not support NS records nor subdomains.
 				"DYNU",              // Apex NS records are managed by Dynu.

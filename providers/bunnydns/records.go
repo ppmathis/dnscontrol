@@ -1,7 +1,6 @@
 package bunnydns
 
 import (
-	"errors"
 	"fmt"
 	"slices"
 
@@ -23,13 +22,7 @@ func (b *bunnydnsProvider) GetZoneRecords(dc *models.DomainConfig) (models.Recor
 		return nil, err
 	}
 
-	implicitRecs, err := b.getImplicitRecordConfigs(zone)
-	if err != nil {
-		return nil, err
-	}
-
-	recs := make(models.Records, 0, len(nativeRecs)+len(implicitRecs))
-	recs = append(recs, implicitRecs...)
+	recs := make(models.Records, 0, len(nativeRecs))
 
 	// Define a list of record types that are currently not supported by this provider.
 	unsupportedTypes := []recordType{
@@ -134,10 +127,6 @@ func (b *bunnydnsProvider) mkChangeCorrection(zoneID int64, oldRec, newRec *mode
 		Msg: msg,
 		F: func() error {
 			existingID := oldRec.Original.(*record).ID
-			if existingID == 0 {
-				return errors.New("BUNNY_DNS: cannot change implicit records")
-			}
-
 			desired, err := fromRecordConfig(newRec)
 			if err != nil {
 				return err
@@ -153,10 +142,6 @@ func (b *bunnydnsProvider) mkDeleteCorrection(zoneID int64, oldRec *models.Recor
 		Msg: msg,
 		F: func() error {
 			existingID := oldRec.Original.(*record).ID
-			if existingID == 0 {
-				return errors.New("BUNNY_DNS: cannot delete implicit records")
-			}
-
 			return b.deleteRecord(zoneID, existingID)
 		},
 	}
