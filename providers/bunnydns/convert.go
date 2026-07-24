@@ -128,7 +128,7 @@ func toRecordConfig(dc *models.DomainConfig, r *record) (*models.RecordConfig, e
 	case "TLSA":
 		rc, err = dc.NewRecordConfigParse(label, r.TTL, dnsv2.TypeTLSA, recordValue)
 	case "TXT":
-		rc, err = dc.NewRecordConfig(label, r.TTL, dnsv2.TypeTXT, recordValue)
+		rc, err = dc.NewRecordConfigParse(label, r.TTL, dnsv2.TypeTXT, recordValue)
 	default:
 		rc, err = dc.NewRecordConfigParse(label, r.TTL, rtype, recordValue)
 	}
