@@ -2302,8 +2302,8 @@ func makeTests() []*TestGroup {
 
 		testgroup("Bunny DNS Pull Zone",
 			only("BUNNY_DNS"),
-			tc("Create PZ", bunnyPullZone("@", "5269987")),
-			tc("Change PZ", bunnyPullZone("@", "5269992")),
+			tc("Create PZ", bunnyPullZone("@", "6214614")),
+			tc("Change PZ", bunnyPullZone("@", "6214615")),
 		),
 
 		// HEDNS: Dynamic DNS
