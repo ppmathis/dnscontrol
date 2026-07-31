@@ -380,6 +380,8 @@ func (c *cloudnsProvider) ListZones() ([]string, error) {
 
 // parses the ClouDNS format into our standard RecordConfig.
 func toRc(dc *models.DomainConfig, r *domainRecord) (*models.RecordConfig, error) {
+	var err error
+
 	ttl_, err := strconv.ParseUint(r.TTL, 10, 32)
 	if err != nil {
 		return nil, err
@@ -446,12 +448,18 @@ func toRc(dc *models.DomainConfig, r *domainRecord) (*models.RecordConfig, error
 			r.LocLatDeg, r.LocLatMin, latSec, r.LocLatDir,
 			r.LocLongDeg, r.LocLongMin, longSec, r.LocLongDir,
 			altitude, size, hPrec, vPrec)
+		if err != nil {
+			return nil, err
+		}
 
 	case "NAPTR":
 		target := dc.ToFqdnWithDot(r.NaptrReplacement + ".")
 		rc, err = dc.NewRecordConfig(label, ttl, dnsv2.TypeNAPTR, r.NaptrOrder, r.NaptrPreference, r.NaptrFlags, r.NaptrService, r.NaptrRegexp, target)
 	default:
 		rc, err = dc.NewRecordConfigParse(label, ttl, rtype, r.Target)
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	// Add metadata for GeoDNS
@@ -460,10 +468,6 @@ func toRc(dc *models.DomainConfig, r *domainRecord) (*models.RecordConfig, error
 	// for your ClouDNS account.
 	if r.GeodnsCode != "" {
 		rc.Metadata[metaGeodnsCode] = r.GeodnsCode
-	}
-
-	if err != nil {
-		return nil, err
 	}
 
 	rc.Original = r
