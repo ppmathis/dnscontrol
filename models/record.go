@@ -72,8 +72,8 @@ type RecordConfig struct {
 	//// Legacy fields we hope to remove someday
 
 	// If you add a field to this struct, also add it to the list in the UnmarshalJSON function.
-	target       string // If a name, must end with "."
-	MxPreference uint16 `json:"mxpreference,omitempty"`
+	target string // If a name, must end with "."
+	// MxPreference uint16 `json:"mxpreference,omitempty"`
 	SrvPriority  uint16 `json:"srvpriority,omitempty"`
 	SrvWeight    uint16 `json:"srvweight,omitempty"`
 	SrvPort      uint16 `json:"srvport,omitempty"`
@@ -361,13 +361,29 @@ func (rc *RecordConfig) ToRRv2() dnsv2.RR {
 }
 
 // GetDependencies returns the FQDNs on which this record dependents.
+// For example, some providers won't create a CNAME until the target already exists.
+// DNSControl will assure that the target exists before the CNAME is created if
+// this function returns the target name when called on a CNAME record.
+// The reverse is true for deletions. DNSControl will delete the records for
+// rc.GetDependencies() before deleting the rc.
 func (rc *RecordConfig) GetDependencies() []string {
 	switch rc.Type {
-	// #rtype_variations
-	case "NS", "SRV", "CNAME", "DNAME", "MX", "ALIAS", "AZURE_ALIAS", "R53_ALIAS":
-		return []string{
-			rc.target,
-		}
+	case "NS":
+		return []string{rc.AsNS().Ns}
+	case "SRV":
+		return []string{rc.AsSRV().Target}
+	case "CNAME":
+		return []string{rc.AsCNAME().Target}
+	case "DNAME":
+		return []string{rc.AsDNAME().Target}
+	case "MX":
+		return []string{rc.AsMX().Mx}
+	case "ALIAS":
+		return []string{rc.AsALIAS().Target}
+	case "AZURE_ALIAS":
+		return []string{rc.AsAZUREALIAS().Target}
+	case "R53_ALIAS":
+		return []string{rc.AsR53ALIAS().Target}
 	}
 
 	return []string{}
