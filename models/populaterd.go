@@ -167,16 +167,11 @@ func (rc *RecordConfig) copyLegacyFieldsToRD(origin string) {
 		// errorChk(err)
 		// rc.SetRDATA(rd)
 	case privatetypes.TypeAZUREALIAS:
-		rd, err := privatetypesrdata.MakeAZUREALIAS(origin, nil, isEnabled, rc.AzureAlias["type"], rc.GetTargetField())
-		errorChk(err)
-		rc.SetRDATA(rd)
 
 	case dnsv2.TypeCNAME:
-		// Needed when a provider converts ALIAS->CNAME via ChangeType() (which
-		// clears the RDATA) and the diff engine then rebuilds the V3 fields.
-		rd, err := MakeCNAME(origin, nil, isEnabled, rc.GetTargetField())
-		errorChk(err)
-		rc.SetRDATA(rd)
+		// rd, err := MakeCNAME(origin, nil, isEnabled, rc.GetTargetField())
+		// errorChk(err)
+		// rc.SetRDATA(rd)
 
 	case dnsv2.TypeDHCID:
 		// rd, err := MakeDHCID(origin, nil, isEnabled, rc.GetTargetField())
@@ -213,14 +208,6 @@ func (rc *RecordConfig) copyLegacyFieldsToRD(origin string) {
 		// rc.SetRDATA(rd)
 
 	case privatetypes.TypeR53ALIAS:
-		rd, err := privatetypesrdata.MakeR53ALIAS(origin, nil, isEnabled,
-			rc.R53Alias["type"],
-			rc.GetTargetField(),
-			rc.R53Alias["evaluate_target_health"],
-			rc.R53Alias["zone_id"],
-		)
-		errorChk(err)
-		rc.SetRDATA(rd)
 
 	case dnsv2.TypeTXT:
 		// rd, err := MakeTXT(origin, nil, isEnabled, rc.GetTargetField())

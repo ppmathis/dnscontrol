@@ -414,12 +414,12 @@ func (r *route53Provider) GetZoneRecordsCorrections(dc *models.DomainConfig, exi
 
 	// update zone_id to current zone.id if not specified by the user
 	for _, want := range dc.Records {
-		if want.Type == "R53_ALIAS" && want.R53Alias["zone_id"] == "" {
-			want.R53Alias["zone_id"] = getZoneID(zone, want)
-			// The zone_id was just filled in, but the cached RDATA/ComparableV3
-			// were computed (with an empty zone_id) when the record was built.
-			// Refresh them so the diff engine doesn't report a spurious change.
-			want.RecomputeV3Fields(dc.Name)
+		if want.Type == "R53_ALIAS" {
+			f := want.AsR53ALIAS()
+			if f.ZoneID == "" {
+				f.ZoneID = getZoneID(zone, want)
+				want.SetRDATA(f)
+			}
 		}
 	}
 
@@ -470,11 +470,9 @@ func (r *route53Provider) GetZoneRecordsCorrections(dc *models.DomainConfig, exi
 				if len(inst.New) != 1 {
 					log.Fatal("Only one R53_ALIAS_ permitted on a label")
 				}
-				fmt.Printf("DEBUG: Creating an ALIAS\n")
 				rrset = aliasToRRSet(zone, inst.New[0])
 				rrset.Name = aws.String(instNameFQDN)
 			} else {
-				fmt.Printf("DEBUG: Creating an NOT-ALIAS\n")
 				// Make a list of all the records to be installed at label:rtype
 				rrset = &r53Types.ResourceRecordSet{
 					Name: aws.String(instNameFQDN),
@@ -563,15 +561,6 @@ func nativeToRecords(dc *models.DomainConfig, set r53Types.ResourceRecordSet, or
 	var results models.Records
 	if set.AliasTarget != nil {
 
-		// fmt.Printf("DEBUG: making RC for R53_ALIAS: label=%v ttl=%v type=%v atype=%v %v %v %v\n",
-		// 	dc.LabelFromFQDNNoDot(unescape(set.Name)), 300,
-		// 	privatetypes.TypeR53ALIAS,
-		// 	string(set.Type),
-		// 	aws.ToString(set.AliasTarget.DNSName),
-		// 	strconv.FormatBool(set.AliasTarget.EvaluateTargetHealth),
-		// 	aws.ToString(set.AliasTarget.HostedZoneId),
-		// )
-
 		rc, err := dc.NewRecordConfig(dc.LabelFromFQDNNoDot(unescape(set.Name)), 300,
 			privatetypes.TypeR53ALIAS,
 			string(set.Type),
@@ -589,7 +578,6 @@ func nativeToRecords(dc *models.DomainConfig, set r53Types.ResourceRecordSet, or
 	} else if set.TrafficPolicyInstanceId != nil {
 		// skip traffic policy records
 	} else {
-		// fmt.Printf("DEBUG: NOT AN ALIAS: label=%v ttl=%v type=%v\n", dc.LabelFromFQDNNoDot(unescape(set.Name)), aws.ToInt64(set.TTL), set.Type)
 		for _, rec := range set.ResourceRecords {
 			switch rtype := set.Type; rtype {
 			case r53Types.RRTypeSpf:
@@ -695,15 +683,15 @@ func applyR53RoutingFieldsToRRSet(rrset *r53Types.ResourceRecordSet, rc *models.
 }
 
 func aliasToRRSet(zone r53Types.HostedZone, r *models.RecordConfig) *r53Types.ResourceRecordSet {
-	target := r.AsR53ALIAS().Target
-	fmt.Printf("DEBUG: target=%s\n", target)
+	f := r.AsR53ALIAS()
+	target := f.Target
 	zoneID := getZoneID(zone, r)
-	evalTargetHealth, err := strconv.ParseBool(r.R53Alias["evaluate_target_health"])
+	evalTargetHealth, err := strconv.ParseBool(f.EvalTargetHealth)
 	if err != nil {
 		evalTargetHealth = false
 	}
 	rrset := &r53Types.ResourceRecordSet{
-		Type: r53Types.RRType(r.R53Alias["type"]),
+		Type: r53Types.RRType(f.AliasType),
 		AliasTarget: &r53Types.AliasTarget{
 			DNSName:              &target,
 			HostedZoneId:         aws.String(zoneID),
@@ -714,7 +702,7 @@ func aliasToRRSet(zone r53Types.HostedZone, r *models.RecordConfig) *r53Types.Re
 }
 
 func getZoneID(zone r53Types.HostedZone, r *models.RecordConfig) string {
-	zoneID := r.R53Alias["zone_id"]
+	zoneID := r.AsR53ALIAS().ZoneID
 	if zoneID == "" {
 		zoneID = aws.ToString(zone.Id)
 	}

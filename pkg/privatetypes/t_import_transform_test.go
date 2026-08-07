@@ -9,11 +9,14 @@ import (
 	privatetypesrdata "github.com/DNSControl/dnscontrol/v5/pkg/privatetypes/rdata"
 )
 
-func TestBunnyDnsRdr(t *testing.T) {
-	y := &BUNNYDNSRDR{
+func TestImportTransform(t *testing.T) {
+	y := &IMPORTTRANSFORM{
 		Hdr: dnsv2.Header{Name: "example.org.", Class: dnsv2.ClassINET},
-		BUNNYDNSRDR: privatetypesrdata.BUNNYDNSRDR{
-			Target: "https://example.com",
+		IMPORTTRANSFORM: privatetypesrdata.IMPORTTRANSFORM{
+			TransformTable: "1.1.1.0 ~ 1.1.1.100 ~ 4.4.4.100 ~",
+			TTL:            123,
+			SuffixStrip:    "com",
+			TargetDomain:   "example.com",
 		},
 	}
 	rry, err := dnsv2.New(y.String())
@@ -21,7 +24,7 @@ func TestBunnyDnsRdr(t *testing.T) {
 		t.Fatal(err)
 	}
 	if rry.String() != y.String() {
-		t.Fatalf("BUNNY_DNS_RDR string presentations should be identical:\n%s\n%s", rry.String(), y.String())
+		t.Fatalf("IMPORT_TRANSFORM string presentations should be identical:\n%s\n%s", rry.String(), y.String())
 	}
 }
 

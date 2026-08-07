@@ -184,16 +184,7 @@ func makeChanges(t *testing.T, prv providers.DNSServiceProvider, dc *models.Doma
 		for _, r := range tst.Records {
 			rc := models.RecordConfig(*r)
 
-			if strings.Contains(rc.GetTargetField(), "**subscription-id**") {
-				_ = rc.SetTarget(strings.Replace(rc.GetTargetField(), "**subscription-id**", origConfig["SubscriptionID"], 1))
-				rc.ClearRDATA()
-				rc.ComparableV3 = ""
-			}
-			if strings.Contains(rc.GetTargetField(), "**resource-group**") {
-				_ = rc.SetTarget(strings.Replace(rc.GetTargetField(), "**resource-group**", strings.ToLower(origConfig["ResourceGroup"]), 1))
-				rc.ClearRDATA()
-				rc.ComparableV3 = ""
-			}
+			replaceIntegrationTargetTokens(&rc, origConfig["SubscriptionID"], origConfig["ResourceGroup"])
 
 			dom.Records = append(dom.Records, &rc)
 		}
@@ -270,6 +261,27 @@ func makeChanges(t *testing.T, prv providers.DNSServiceProvider, dc *models.Doma
 			t.FailNow()
 		}
 	})
+}
+
+func replaceIntegrationTargetTokens(rc *models.RecordConfig, subscriptionID, resourceGroup string) {
+	originalTarget := rc.GetTargetField()
+	target := strings.NewReplacer(
+		"**subscription-id**", subscriptionID,
+		"**resource-group**", strings.ToLower(resourceGroup),
+	).Replace(originalTarget)
+	if target == originalTarget {
+		return
+	}
+
+	if rc.Type == "AZURE_ALIAS" {
+		rd := rc.AsAZUREALIAS()
+		rd.Target = target
+		rc.SetRDATA(rd)
+		return
+	}
+
+	_ = rc.SetTarget(target)
+	rc.ClearRDATA()
 }
 
 func runTests(t *testing.T, prv providers.DNSServiceProvider, domainName string, origConfig map[string]string) {
@@ -601,9 +613,7 @@ func ptr(name, target string) *models.RecordConfig {
 }
 
 func r53alias(name, aliasType, target, evalTargetHealth string) *models.RecordConfig {
-	// fmt.Printf("DEBUG: r53alias: name=%q aliasType=%q target=%q evalTargetHealth=%q\n", name, aliasType, target, evalTargetHealth)
 	target = fillTemplate(target)
-	fmt.Printf("DEBUG: r53alias: NEWtarget=%q\n", target)
 	r, err := globalDC.NewRecordConfig(name, defaultTTL, privatetypes.TypeR53ALIAS, aliasType, target, evalTargetHealth)
 	panicOnErr(err)
 	return r

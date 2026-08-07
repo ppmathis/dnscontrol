@@ -24,33 +24,8 @@ func (rc *RecordConfig) copyRDtoLegacyFields() error {
 	case privatetypesrdata.AKAMAITLC:
 		rc.AnswerType = rd.AnswerType
 	case privatetypesrdata.AZUREALIAS:
-		rc.AzureAlias = map[string]string{"type": rd.AliasType}
-		// Mirror the alias target into the legacy .target field so that
-		// copyLegacyFieldsToRD() can re-derive the RDATA from GetTargetField()
-		// (e.g. when RecomputeV3Fields() rebuilds after ClearRDATA()). Without
-		// this the target would be lost. See the R53ALIAS case below.
-		if err := rc.SetTarget(rd.Target); err != nil {
-			return err
-		}
 	case privatetypesrdata.LUA:
-		rc.LuaRType = rd.LuaType
 	case privatetypesrdata.R53ALIAS:
-		if rc.R53Alias == nil {
-			rc.R53Alias = map[string]string{}
-		}
-		rc.R53Alias["type"] = rd.AliasType
-		if rd.ZoneID != "" {
-			rc.R53Alias["zone_id"] = rd.ZoneID
-		}
-		rc.R53Alias["evaluate_target_health"] = rd.EvalTargetHealth
-		// The alias target (DNSName) is the record's primary target. It must be
-		// mirrored into the legacy .target field: copyLegacyFieldsToRD() re-derives
-		// the RDATA from GetTargetField() (e.g. when RecomputeV3Fields() rebuilds
-		// after a provider fills in zone_id), and without this the target would be
-		// lost and default to the zone apex.
-		if err := rc.SetTarget(rd.Target); err != nil {
-			return err
-		}
 
 	case dnsrdatav2.A:
 	case dnsrdatav2.AAAA:
@@ -78,18 +53,13 @@ func (rc *RecordConfig) copyRDtoLegacyFields() error {
 	case privatetypesrdata.ADGUARDHOMEAPASSTHROUGH:
 	case privatetypesrdata.AKAMAICDN:
 	case privatetypesrdata.ALIAS:
-		// Mirror the target into the legacy .target field. Several providers
-		// convert ALIAS->CNAME with ChangeType(), which clears the RDATA; the
-		// rebuild (copyLegacyFieldsToRD) then re-derives the CNAME from
-		// GetTargetField(). Without this the target would be lost.
-		if err := rc.SetTarget(rd.Target); err != nil {
-			return err
-		}
 	case privatetypesrdata.BUNNYDNSPZ:
+	case privatetypesrdata.BUNNYDNSRDR:
 	case privatetypesrdata.CFWORKERROUTE:
 	case privatetypesrdata.CLOUDFLAREAPISINGLEREDIRECT:
 	case privatetypesrdata.CLOUDNSWR:
 	case privatetypesrdata.FRAME:
+	case privatetypesrdata.IMPORTTRANSFORM:
 	case privatetypesrdata.MIKROTIKFORWARDER:
 	case privatetypesrdata.MIKROTIKFWD:
 	case privatetypesrdata.MIKROTIKNXDOMAIN:
