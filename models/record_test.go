@@ -5,6 +5,98 @@ import (
 	"testing"
 )
 
+// TestR53AliasTargetSurvivesRecompute reproduces the bug where an R53_ALIAS
+// target was lost (defaulting to the zone apex) after a provider filled in the
+// zone_id and called RecomputeV3Fields(). See copyRDtoLegacyFields().
+func TestR53AliasTargetSurvivesRecompute(t *testing.T) {
+	const origin = "example.com"
+	const wantTarget = "kyle.example.com."
+
+	dc := MustNewDomainConfig(origin)
+	rc, err := dc.NewRecordConfig("kenny", 300, "R53_ALIAS", "A", wantTarget, "false")
+	if err != nil {
+		t.Fatalf("NewRecordConfig: %v", err)
+	}
+
+	if got := rc.AsR53ALIAS().Target; got != wantTarget {
+		t.Fatalf("target after construction = %q, want %q", got, wantTarget)
+	}
+
+	// Simulate a provider (Route 53) filling in the zone_id and refreshing the
+	// cached V3 fields, exactly as route53Provider.GetZoneRecordsCorrections does.
+	rc.R53Alias["zone_id"] = "Z0389923"
+	rc.RecomputeV3Fields(origin)
+
+	if got := rc.AsR53ALIAS().Target; got != wantTarget {
+		t.Errorf("target after RecomputeV3Fields = %q, want %q", got, wantTarget)
+	}
+	if got := rc.GetTargetField(); got != wantTarget {
+		t.Errorf("GetTargetField after RecomputeV3Fields = %q, want %q", got, wantTarget)
+	}
+}
+
+// TestAzureAliasTargetSurvivesRecompute is the AZURE_ALIAS analog of
+// TestR53AliasTargetSurvivesRecompute. Before the fix, RecomputeV3Fields()
+// panicked ("FixUp: .RDATA is nil for type AZURE_ALIAS") because the RDATA
+// rebuild case was not implemented. See copyLegacyFieldsToRD()/copyRDtoLegacyFields().
+func TestAzureAliasTargetSurvivesRecompute(t *testing.T) {
+	const origin = "example.com"
+	const wantTarget = "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com/A/kyle"
+
+	dc := MustNewDomainConfig(origin)
+	rc, err := dc.NewRecordConfig("kenny", 300, "AZURE_ALIAS", "A", wantTarget)
+	if err != nil {
+		t.Fatalf("NewRecordConfig: %v", err)
+	}
+
+	if got := rc.AsAZUREALIAS().Target; got != wantTarget {
+		t.Fatalf("target after construction = %q, want %q", got, wantTarget)
+	}
+
+	// Refreshing the cached V3 fields must not panic and must preserve the target.
+	rc.RecomputeV3Fields(origin)
+
+	if got := rc.AsAZUREALIAS().Target; got != wantTarget {
+		t.Errorf("target after RecomputeV3Fields = %q, want %q", got, wantTarget)
+	}
+	if got := rc.GetTargetField(); got != wantTarget {
+		t.Errorf("GetTargetField after RecomputeV3Fields = %q, want %q", got, wantTarget)
+	}
+}
+
+// TestAliasToCnameChangeType reproduces the bug where converting an ALIAS to a
+// CNAME via ChangeType() (as CLOUDFLAREAPI and other flattening providers do)
+// panicked ("FixUp: .RDATA is nil for type CNAME") and/or lost the target,
+// because ALIAS never mirrored its target into .target and the CNAME rebuild
+// case was not implemented. See copyRDtoLegacyFields()/copyLegacyFieldsToRD().
+func TestAliasToCnameChangeType(t *testing.T) {
+	const origin = "example.com"
+	const wantTarget = "foo.example.com."
+
+	dc := MustNewDomainConfig(origin)
+	rc, err := dc.NewRecordConfig("@", 300, "ALIAS", wantTarget)
+	if err != nil {
+		t.Fatalf("NewRecordConfig: %v", err)
+	}
+
+	// A provider converts the apex ALIAS into a CNAME (CNAME flattening).
+	rc.ChangeType("CNAME", origin)
+
+	// The diff engine rebuilds the cleared V3 fields. This must not panic and
+	// must preserve the target.
+	rc.FixRD(origin)
+
+	if rc.GetRDATA() == nil {
+		t.Fatal("RDATA is nil after FixRD")
+	}
+	if got := rc.AsCNAME().Target; got != wantTarget {
+		t.Errorf("CNAME target = %q, want %q", got, wantTarget)
+	}
+	if got := rc.GetTargetField(); got != wantTarget {
+		t.Errorf("GetTargetField = %q, want %q", got, wantTarget)
+	}
+}
+
 func TestHasRecordTypeName(t *testing.T) {
 	x := &RecordConfig{
 		Type: "A",
@@ -175,33 +267,13 @@ func TestRecordConfig_Copy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rc := &RecordConfig{
-				Type:      tt.fields.Type,
-				Name:      tt.fields.Name,
-				SubDomain: tt.fields.SubDomain,
-				NameFQDN:  tt.fields.NameFQDN,
-				target:    tt.fields.target,
-				TTL:       tt.fields.TTL,
-				Metadata:  tt.fields.Metadata,
-				// MxPreference:     tt.fields.MxPreference,
-				// SrvPriority:  tt.fields.SrvPriority,
-				// SrvWeight:    tt.fields.SrvWeight,
-				// SrvPort:      tt.fields.SrvPort,
-				// CaaTag:       tt.fields.CaaTag,
-				// CaaFlag:      tt.fields.CaaFlag,
-				// DsKeyTag:     tt.fields.DsKeyTag,
-				// DsAlgorithm:  tt.fields.DsAlgorithm,
-				// DsDigestType: tt.fields.DsDigestType,
-				// DsDigest:     tt.fields.DsDigest,
-				// NaptrOrder:       tt.fields.NaptrOrder,
-				// NaptrPreference:  tt.fields.NaptrPreference,
-				// NaptrFlags:       tt.fields.NaptrFlags,
-				// NaptrService:     tt.fields.NaptrService,
-				// NaptrRegexp:      tt.fields.NaptrRegexp,
-				// SshfpAlgorithm:   tt.fields.SshfpAlgorithm,
-				// SshfpFingerprint: tt.fields.SshfpFingerprint,
-				// TlsaUsage:        tt.fields.TlsaUsage,
-				// TlsaSelector:     tt.fields.TlsaSelector,
-				// TlsaMatchingType: tt.fields.TlsaMatchingType,
+				Type:       tt.fields.Type,
+				Name:       tt.fields.Name,
+				SubDomain:  tt.fields.SubDomain,
+				NameFQDN:   tt.fields.NameFQDN,
+				target:     tt.fields.target,
+				TTL:        tt.fields.TTL,
+				Metadata:   tt.fields.Metadata,
 				R53Alias:   tt.fields.R53Alias,
 				AzureAlias: tt.fields.AzureAlias,
 				Original:   tt.fields.Original,
@@ -285,7 +357,7 @@ func Test_makeLabelNameUnicode(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.tname, func(t *testing.T) {
-			got := makeLabelNameUnicode(tt.name)
+			got, _ := makeLabelNameUnicode(tt.name)
 			// TODO: update the condition below to compare got with tt.want.
 			if got != tt.want {
 				t.Errorf("makeNameUnicode(%q) = %v, want %v", tt.name, got, tt.want)

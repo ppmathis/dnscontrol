@@ -559,7 +559,7 @@ func loc(name string, d1 uint8, m1 uint8, s1 float32, ns string,
 }
 
 func manyA(namePattern, target string, n int) []*models.RecordConfig {
-	recs := []*models.RecordConfig{}
+	recs := models.Records{}
 	for i := range n {
 		r, err := globalDC.NewRecordConfig(fmt.Sprintf(namePattern, i), defaultTTL, dnsv2.TypeA, target)
 		panicOnErr(err)
@@ -601,7 +601,9 @@ func ptr(name, target string) *models.RecordConfig {
 }
 
 func r53alias(name, aliasType, target, evalTargetHealth string) *models.RecordConfig {
+	// fmt.Printf("DEBUG: r53alias: name=%q aliasType=%q target=%q evalTargetHealth=%q\n", name, aliasType, target, evalTargetHealth)
 	target = fillTemplate(target)
+	fmt.Printf("DEBUG: r53alias: NEWtarget=%q\n", target)
 	r, err := globalDC.NewRecordConfig(name, defaultTTL, privatetypes.TypeR53ALIAS, aliasType, target, evalTargetHealth)
 	panicOnErr(err)
 	return r
