@@ -76,16 +76,11 @@ func init() {
 }
 
 type luadnsProvider struct {
-	observer    providers.ConversionObserver
 	provider    *api.Client
 	ctx         context.Context
 	rateLimiter *rate.Limiter
 	nameServers []string
 	zones       []*api.Zone
-}
-
-func (l *luadnsProvider) SetConversionObserver(observer providers.ConversionObserver) {
-	l.observer = observer
 }
 
 // NewLuaDNS creates the provider.
@@ -140,9 +135,7 @@ func (l *luadnsProvider) GetZoneRecords(dc *models.DomainConfig) (models.Records
 	}
 	existingRecords := make([]*models.RecordConfig, len(records))
 	for i := range records {
-		before := providers.BeginToRC(l.observer, "nativeToRecord", records[i])
 		newr, err := nativeToRecord(dc, records[i])
-		providers.EndToRC(l.observer, "nativeToRecord", before, records[i], models.Records{newr}, err)
 		if err != nil {
 			return nil, err
 		}
@@ -172,9 +165,7 @@ func (l *luadnsProvider) GetZoneRecordsCorrections(dc *models.DomainConfig, reco
 		case diff2.REPORT:
 			corrections = append(corrections, &models.Correction{Msg: change.MsgsJoined})
 		case diff2.CREATE:
-			before := providers.BeginToNative(l.observer, "recordsToNative", change.New)
 			req := recordsToNative(change.New)
-			providers.EndToNative(l.observer, "recordsToNative", before, change.New, req, nil)
 			corrections = append(corrections, &models.Correction{
 				F: func() error {
 					if err := l.rateLimiter.Wait(l.ctx); err != nil {
@@ -186,9 +177,7 @@ func (l *luadnsProvider) GetZoneRecordsCorrections(dc *models.DomainConfig, reco
 				Msg: change.MsgsJoined,
 			})
 		case diff2.CHANGE:
-			before := providers.BeginToNative(l.observer, "recordsToNative", change.New)
 			req := recordsToNative(change.New)
-			providers.EndToNative(l.observer, "recordsToNative", before, change.New, req, nil)
 			corrections = append(corrections, &models.Correction{
 				F: func() error {
 					if err := l.rateLimiter.Wait(l.ctx); err != nil {
@@ -200,9 +189,7 @@ func (l *luadnsProvider) GetZoneRecordsCorrections(dc *models.DomainConfig, reco
 				Msg: change.MsgsJoined,
 			})
 		case diff2.DELETE:
-			before := providers.BeginToNative(l.observer, "recordsToNative", change.Old)
 			req := recordsToNative(change.Old)
-			providers.EndToNative(l.observer, "recordsToNative", before, change.Old, req, nil)
 			corrections = append(corrections, &models.Correction{
 				F: func() error {
 					if err := l.rateLimiter.Wait(l.ctx); err != nil {

@@ -94,7 +94,6 @@ func init() {
 }
 
 type gcloudProvider struct {
-	observer      providers.ConversionObserver
 	client        *gdns.Service
 	project       string
 	nameServerSet *string
@@ -102,10 +101,6 @@ type gcloudProvider struct {
 	// provider metadata fields
 	Visibility string   `json:"visibility"`
 	Networks   []string `json:"networks"`
-}
-
-func (g *gcloudProvider) SetConversionObserver(observer providers.ConversionObserver) {
-	g.observer = observer
 }
 
 type errNoExist struct {
@@ -263,18 +258,14 @@ func (g *gcloudProvider) getZoneSets(dc *models.DomainConfig) (models.Records, e
 	oldRRs := map[key]*gdns.ResourceRecordSet{}
 	for _, set := range rrs {
 		oldRRs[keyFor(set)] = set
-		before := providers.BeginToRC(g.observer, "nativeToRecord", set)
-		var converted models.Records
 		for _, rec := range set.Rrdatas {
 			rt, err := nativeToRecord(set, rec, dc)
 			if err != nil {
-				providers.EndToRC(g.observer, "nativeToRecord", before, set, converted, err)
 				return nil, err
 			}
-			converted = append(converted, rt)
+
+			existingRecords = append(existingRecords, rt)
 		}
-		providers.EndToRC(g.observer, "nativeToRecord", before, set, converted, nil)
-		existingRecords = append(existingRecords, converted...)
 	}
 
 	return existingRecords, err

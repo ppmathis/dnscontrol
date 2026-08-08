@@ -24,16 +24,11 @@ import (
 const azurePendingOperationConflictMessage = "Another operation is pending for requested object"
 
 type azurednsProvider struct {
-	observer       providers.ConversionObserver
 	zonesClient    *adns.ZonesClient
 	recordsClient  *adns.RecordSetsClient
 	zones          map[string]*adns.Zone
 	resourceGroup  *string
 	subscriptionID *string
-}
-
-func (a *azurednsProvider) SetConversionObserver(observer providers.ConversionObserver) {
-	a.observer = observer
 }
 
 // Modified `newAzureDNSDsp` to maintain backward compatibility with the new OIDC support.
@@ -318,10 +313,7 @@ func (a *azurednsProvider) getExistingRecords(dc *models.DomainConfig) (models.R
 
 	var existingRecords models.Records
 	for _, set := range rawRecords {
-		before := providers.BeginToRC(a.observer, "nativeToRecords", set)
-		records := nativeToRecords(set, dc)
-		providers.EndToRC(a.observer, "nativeToRecords", before, set, records, nil)
-		existingRecords = append(existingRecords, records...)
+		existingRecords = append(existingRecords, nativeToRecords(set, dc)...)
 	}
 
 	return existingRecords, rawRecords, zoneName, nil

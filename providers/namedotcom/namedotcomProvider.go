@@ -14,15 +14,10 @@ const defaultAPIBase = "api.name.com"
 
 // namedotcomProvider describes a connection to the NDC API.
 type namedotcomProvider struct {
-	observer providers.ConversionObserver
-	APIUrl   string `json:"apiurl"`
-	APIUser  string `json:"apiuser"`
-	APIKey   string `json:"apikey"`
-	client   *namecom.NameCom
-}
-
-func (n *namedotcomProvider) SetConversionObserver(observer providers.ConversionObserver) {
-	n.observer = observer
+	APIUrl  string `json:"apiurl"`
+	APIUser string `json:"apiuser"`
+	APIKey  string `json:"apikey"`
+	client  *namecom.NameCom
 }
 
 var features = providers.DocumentationNotes{
