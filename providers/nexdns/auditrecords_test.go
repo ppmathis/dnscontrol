@@ -4,7 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DNSControl/dnscontrol/v4/models"
+	dnsv2 "codeberg.org/miekg/dns"
+	"github.com/DNSControl/dnscontrol/v5/models"
 )
 
 func TestAuditRecords(t *testing.T) {
@@ -119,10 +120,10 @@ func TestRejectUnroutableIP(t *testing.T) {
 func auditCAA(t *testing.T, flag uint8, tag, target string) *models.RecordConfig {
 	t.Helper()
 
-	rc := &models.RecordConfig{Type: "CAA"}
-	rc.SetLabel("@", testOrigin)
-	if err := rc.SetTargetCAA(flag, tag, target); err != nil {
-		t.Fatalf("SetTargetCAA() error = %v", err)
-	}
+	dc := models.MustNewDomainConfig(testOrigin)
+	rc := dc.MustNewRecordConfig("@", 0, dnsv2.TypeCAA, flag, tag, target)
+	// if err := rc.SetTargetCAA(flag, tag, target); err != nil {
+	// 	t.Fatalf("SetTargetCAA() error = %v", err)
+	// }
 	return rc
 }
