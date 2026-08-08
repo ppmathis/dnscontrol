@@ -33,7 +33,6 @@ var features = providers.DocumentationNotes{
 }
 
 type websupportProvider struct {
-	observer   providers.ConversionObserver
 	apiKey     string
 	secret     string
 	baseURL    string
@@ -41,10 +40,6 @@ type websupportProvider struct {
 	// services caches the domain -> numeric service id mapping that the v2
 	// DNS endpoints require as their {service} path segment.
 	services map[string]int64
-}
-
-func (c *websupportProvider) SetConversionObserver(observer providers.ConversionObserver) {
-	c.observer = observer
 }
 
 func init() {

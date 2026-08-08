@@ -15,15 +15,10 @@ import (
 
 // packetframeProvider is the handle for this provider.
 type packetframeProvider struct {
-	observer    providers.ConversionObserver
 	client      *http.Client
 	baseURL     *url.URL
 	token       string
 	domainIndex map[string]zoneInfo
-}
-
-func (api *packetframeProvider) SetConversionObserver(observer providers.ConversionObserver) {
-	api.observer = observer
 }
 
 // newPacketframe creates the provider.
@@ -102,9 +97,7 @@ func (api *packetframeProvider) GetZoneRecords(dc *models.DomainConfig) (models.
 	existingRecords := make(models.Records, len(records))
 
 	for i := range records {
-		before := providers.BeginToRC(api.observer, "toRc", &records[i])
 		existingRecords[i], err = toRc(dc, &records[i])
-		providers.EndToRC(api.observer, "toRc", before, &records[i], models.Records{existingRecords[i]}, err)
 		if err != nil {
 			return nil, err
 		}
@@ -132,9 +125,7 @@ func (api *packetframeProvider) GetZoneRecordsCorrections(dc *models.DomainConfi
 			corrections = append(corrections, &models.Correction{Msg: change.MsgsJoined})
 
 		case diff2.CREATE:
-			before := providers.BeginToNative(api.observer, "toReq", change.New)
 			req, err := toReq(zone.ID, change.New[0])
-			providers.EndToNative(api.observer, "toReq", before, change.New, req, err)
 			if err != nil {
 				return nil, 0, err
 			}
@@ -163,12 +154,7 @@ func (api *packetframeProvider) GetZoneRecordsCorrections(dc *models.DomainConfi
 			if original.ID == "0" { // Skip the default nameservers
 				continue
 			}
-			before := providers.BeginToNative(api.observer, "toReq", change.New)
-			req, err := toReq(zone.ID, change.New[0])
-			providers.EndToNative(api.observer, "toReq", before, change.New, req, err)
-			if err != nil {
-				return nil, 0, err
-			}
+			req, _ := toReq(zone.ID, change.New[0])
 			req.ID = original.ID
 			corrections = append(corrections, &models.Correction{
 				Msg: change.Msgs[0],

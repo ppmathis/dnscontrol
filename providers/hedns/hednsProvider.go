@@ -146,7 +146,6 @@ const (
 
 // hednsProvider stores login credentials and represents and API connection.
 type hednsProvider struct {
-	observer        providers.ConversionObserver
 	Username        string
 	Password        string
 	TfaSecret       string
@@ -155,10 +154,6 @@ type hednsProvider struct {
 
 	httpClient http.Client
 	zoneCache  zonecache.ZoneCache[uint64]
-}
-
-func (c *hednsProvider) SetConversionObserver(observer providers.ConversionObserver) {
-	c.observer = observer
 }
 
 // Record stores the HEDNS specific zone and record IDs.
@@ -491,9 +486,7 @@ func (c *hednsProvider) GetZoneRecords(dc *models.DomainConfig) (models.Records,
 			return true
 		}
 
-		before := providers.BeginToRC(c.observer, "recordToRC", rec)
 		rc, conversionErr := recordToRC(dc, rec)
-		providers.EndToRC(c.observer, "recordToRC", before, rec, models.Records{rc}, conversionErr)
 		err = conversionErr
 		if err != nil {
 			return false

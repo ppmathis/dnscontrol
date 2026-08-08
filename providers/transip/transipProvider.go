@@ -26,13 +26,8 @@ Info required in `creds.json`
 */
 
 type transipProvider struct {
-	observer providers.ConversionObserver
-	client   *repository.Client
-	domains  *domain.Repository
-}
-
-func (n *transipProvider) SetConversionObserver(observer providers.ConversionObserver) {
-	n.observer = observer
+	client  *repository.Client
+	domains *domain.Repository
 }
 
 var features = providers.DocumentationNotes{
@@ -182,7 +177,7 @@ func (n *transipProvider) GetZoneRecordsCorrections(dc *models.DomainConfig, cur
 		{
 			Msg: msg,
 			F: func() error {
-				nativeDNSEntries, err := n.recordsToNativeObserved(result.DesiredPlus)
+				nativeDNSEntries, err := recordsToNative(result.DesiredPlus)
 				if err != nil {
 					return err
 				}
@@ -246,33 +241,18 @@ retry:
 	return models.ToNameservers(nss)
 }
 
-// func recordsToNative(records models.Records) ([]domain.DNSEntry, error) {
-// 	entries := make([]domain.DNSEntry, len(records))
-
-// 	for iX, record := range records {
-// 		entry, err := recordToNative(record)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-
-// 		entries[iX] = entry
-// 	}
-
-// 	return entries, nil
-// }
-
-func (n *transipProvider) recordsToNativeObserved(records models.Records) ([]domain.DNSEntry, error) {
+func recordsToNative(records models.Records) ([]domain.DNSEntry, error) {
 	entries := make([]domain.DNSEntry, len(records))
-	for i, record := range records {
-		input := models.Records{record}
-		before := providers.BeginToNative(n.observer, "recordToNative", input)
+
+	for iX, record := range records {
 		entry, err := recordToNative(record)
-		providers.EndToNative(n.observer, "recordToNative", before, input, entry, err)
 		if err != nil {
 			return nil, err
 		}
-		entries[i] = entry
+
+		entries[iX] = entry
 	}
+
 	return entries, nil
 }
 

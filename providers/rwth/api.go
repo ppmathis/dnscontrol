@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DNSControl/dnscontrol/v5/models"
+	"github.com/DNSControl/dnscontrol/v5/pkg/dnsrr"
 	"github.com/DNSControl/dnscontrol/v5/pkg/printer"
 )
 
@@ -139,13 +140,19 @@ func (api *rwthProvider) getAllRecords(dc *models.DomainConfig) (models.Records,
 		return nil, fmt.Errorf("failed fetching zone records for %q: %w", dc.Name, err)
 	}
 	for _, apiRecord := range response {
-		recConfig, err := toRecordConfig(dc, apiRecord)
+		if checkIsLockedSystemAPIRecord(apiRecord) != nil {
+			continue
+		}
+		dnsRec, err := NewRR(apiRecord.Content) // Parse content as DNS record
 		if err != nil {
 			return nil, err
 		}
-		if recConfig == nil {
-			continue
+
+		recConfig, err := dnsrr.RRv2toRC(dc, dnsRec) // and make it a RC
+		if err != nil {
+			return nil, err
 		}
+		recConfig.Original = apiRecord // but keep our ApiRecord as the original
 
 		records = append(records, recConfig)
 	}

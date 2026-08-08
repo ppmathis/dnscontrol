@@ -233,38 +233,27 @@ func (h *hetznerv2Provider) GetZoneRecords(dc *models.DomainConfig) (models.Reco
 	}
 	existingRecords := make(models.Records, 0, len(records))
 	for _, rrSet := range records {
-		recs, err := nativeToRecords(dc, rrSet, uint32(z.TTL))
-		if err != nil {
-			return nil, err
+		if rrSet.Type == hcloud.ZoneRRSetTypeSOA {
+			// SOA records are not available for editing, hide them.
+			continue
 		}
-		existingRecords = append(existingRecords, recs...)
+		var ttl uint32
+		if rrSet.TTL != nil {
+			ttl = uint32(*rrSet.TTL)
+		} else {
+			ttl = uint32(z.TTL)
+		}
+
+		for _, r := range rrSet.Records {
+			rc, err := dc.NewRecordConfigParse(dc.LabelFromShort(rrSet.Name), ttl, string(rrSet.Type), r.Value)
+			if err != nil {
+				return nil, err
+			}
+			rc.Original = rrSet
+			existingRecords = append(existingRecords, rc)
+		}
 	}
 	return existingRecords, nil
-}
-
-// nativeToRecords converts a Hetzner RRSet to RecordConfigs, one per value.
-// zoneTTL is the TTL of the zone the RRSet belongs to, used when the RRSet does
-// not carry one of its own. It returns nothing for SOA RRSets, which are hidden.
-func nativeToRecords(dc *models.DomainConfig, rrSet *hcloud.ZoneRRSet, zoneTTL uint32) (models.Records, error) {
-	if rrSet.Type == hcloud.ZoneRRSetTypeSOA {
-		// SOA records are not available for editing, hide them.
-		return nil, nil
-	}
-	ttl := zoneTTL
-	if rrSet.TTL != nil {
-		ttl = uint32(*rrSet.TTL)
-	}
-
-	recs := make(models.Records, 0, len(rrSet.Records))
-	for _, r := range rrSet.Records {
-		rc, err := dc.NewRecordConfigParse(dc.LabelFromShort(rrSet.Name), ttl, string(rrSet.Type), r.Value)
-		if err != nil {
-			return nil, err
-		}
-		rc.Original = rrSet
-		recs = append(recs, rc)
-	}
-	return recs, nil
 }
 
 // ListZones lists the zones on this account.

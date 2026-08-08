@@ -208,13 +208,26 @@ func (o *oracleProvider) GetZoneRecords(dc *models.DomainConfig) (models.Records
 		}
 
 		for _, record := range getResp.Items {
-			rc, err := toRecordConfig(dc, record)
+			// Hide SOAs
+			if *record.Rtype == "SOA" {
+				continue
+			}
+
+			label := dc.LabelFromFQDNNoDot(*record.Domain)
+			ttl := uint32(*record.Ttl)
+			var rc *models.RecordConfig
+
+			switch *record.Rtype {
+			case "ALIAS":
+				rc, err = dc.NewRecordConfig(label, ttl, *record.Rtype, *record.Rdata)
+			default:
+				rc, err = dc.NewRecordConfigParse(label, ttl, *record.Rtype, *record.Rdata)
+			}
+
 			if err != nil {
 				return nil, err
 			}
-			if rc == nil {
-				continue
-			}
+			rc.Original = record
 
 			records = append(records, rc)
 		}
@@ -227,35 +240,6 @@ func (o *oracleProvider) GetZoneRecords(dc *models.DomainConfig) (models.Records
 	}
 
 	return records, nil
-}
-
-// toRecordConfig converts an Oracle record to a RecordConfig. It returns nil for
-// SOA records, which are hidden.
-func toRecordConfig(dc *models.DomainConfig, record dns.Record) (*models.RecordConfig, error) {
-	// Hide SOAs
-	if *record.Rtype == "SOA" {
-		return nil, nil
-	}
-
-	label := dc.LabelFromFQDNNoDot(*record.Domain)
-	ttl := uint32(*record.Ttl)
-
-	var rc *models.RecordConfig
-	var err error
-
-	switch *record.Rtype {
-	case "ALIAS":
-		rc, err = dc.NewRecordConfig(label, ttl, *record.Rtype, *record.Rdata)
-	default:
-		rc, err = dc.NewRecordConfigParse(label, ttl, *record.Rtype, *record.Rdata)
-	}
-
-	if err != nil {
-		return nil, err
-	}
-	rc.Original = record
-
-	return rc, nil
 }
 
 // GetZoneRecordsCorrections returns a list of corrections that will turn existing records into dc.Records.

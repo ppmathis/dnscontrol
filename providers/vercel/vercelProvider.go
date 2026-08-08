@@ -52,7 +52,6 @@ var features = providers.DocumentationNotes{
 
 // vercelProvider stores login credentials and represents and API connection.
 type vercelProvider struct {
-	observer providers.ConversionObserver
 	client   vercelClient.Client
 	apiToken string
 	teamID   string
@@ -61,10 +60,6 @@ type vercelProvider struct {
 	updateLimiter *rateLimiter
 	deleteLimiter *rateLimiter
 	listLimiter   *rateLimiter
-}
-
-func (c *vercelProvider) SetConversionObserver(observer providers.ConversionObserver) {
-	c.observer = observer
 }
 
 func init() {
@@ -139,9 +134,7 @@ func (c *vercelProvider) GetZoneRecords(dc *models.DomainConfig) (models.Records
 			continue
 		}
 
-		before := providers.BeginToRC(c.observer, "vercelRecordToRC", r)
 		rc, err := vercelRecordToRC(dc, r)
-		providers.EndToRC(c.observer, "vercelRecordToRC", before, r, models.Records{rc}, err)
 		if err != nil {
 			return nil, err
 		}
@@ -221,10 +214,7 @@ func (c *vercelProvider) mkCreateCorrection(domain string, newRec *models.Record
 		Msg: msg,
 		F: func() error {
 			ctx := context.Background()
-			input := models.Records{newRec}
-			before := providers.BeginToNative(c.observer, "toVercelCreateRequest", input)
 			req, err := toVercelCreateRequest(domain, newRec)
-			providers.EndToNative(c.observer, "toVercelCreateRequest", before, input, req, err)
 			if err != nil {
 				return err
 			}
@@ -251,10 +241,7 @@ func (c *vercelProvider) mkChangeCorrection(domain string, oldRec, newRec *model
 				// re-create new record.
 				// luckily, delete and create use different rate limit timers
 				// thus we are most likely can go through both.
-				input := models.Records{newRec}
-				before := providers.BeginToNative(c.observer, "toVercelCreateRequest", input)
 				req, err := toVercelCreateRequest(domain, newRec)
-				providers.EndToNative(c.observer, "toVercelCreateRequest", before, input, req, err)
 				if err != nil {
 					return err
 				}
@@ -262,10 +249,7 @@ func (c *vercelProvider) mkChangeCorrection(domain string, oldRec, newRec *model
 				return err
 			}
 
-			input := models.Records{newRec}
-			before := providers.BeginToNative(c.observer, "toVercelUpdateRequest", input)
 			req, err := toVercelUpdateRequest(newRec)
-			providers.EndToNative(c.observer, "toVercelUpdateRequest", before, input, req, err)
 			if err != nil {
 				return err
 			}
