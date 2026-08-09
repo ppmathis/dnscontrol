@@ -21,13 +21,9 @@ func TestImportTransform(t *testing.T) {
 	d1.Metadata = map[string]string{"transform_table": transformSingle}
 	dcDst.AddRecordConfig(d1)
 
-	// d2 := makeRC("@", "internal", "stackexchange.com", models.RecordConfig{Type: "IMPORT_TRANSFORM"})
-	// d2.Metadata = map[string]string{"transform_table": transformDouble}
 	d2 := dcSrc.MustNewRecordConfig("@", 0, privatetypes.TypeIMPORTTRANSFORM, transformDouble, 299, "com.internal", "internal")
 	d2.Metadata["transform_table"] = transformDouble
 	dcDst.AddRecordConfig(d2)
-
-	d2.FixRD(dcDst.Name)
 
 	cfg := &models.DNSConfig{}
 	cfg.Domains = append(cfg.Domains, dcSrc, dcDst)
@@ -35,7 +31,6 @@ func TestImportTransform(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// No need to call rtypecontrol.FixLegacyDC here.
 
 	if errs := ValidateAndNormalizeConfig(cfg); len(errs) != 0 {
 		for _, err := range errs {

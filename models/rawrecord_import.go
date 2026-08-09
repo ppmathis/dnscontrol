@@ -50,7 +50,7 @@ func (config *DNSConfig) ImportRawRecords() error {
 				for _, record := range records {
 					record.FilePos = filePos
 				}
-				// Generation complete!  Append it.
+				// Generation complete!  Append the results.
 				dc.Records = append(dc.Records, records...)
 			} else {
 				typeNum, err := dnsutilv2.StringToType(typeName)
@@ -63,7 +63,7 @@ func (config *DNSConfig) ImportRawRecords() error {
 				// The subdomain is converted to IDNA (punycode) once and reused
 				// for the label, the target origin, and rec.SubDomain.
 				subdomain := rawRec.SubDomain
-				if subdomainExcludedType(typeName) {
+				if subdomainExcludedTypes[typeName] {
 					subdomain = ""
 				} else {
 					subdomain, err = subdomainToASCII(subdomain)
