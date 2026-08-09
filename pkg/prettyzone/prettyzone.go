@@ -10,9 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DNSControl/dnscontrol/v4/models"
-	"github.com/DNSControl/dnscontrol/v4/pkg/txtutil"
-	dnsv1 "github.com/miekg/dns"
+	"github.com/DNSControl/dnscontrol/v5/models"
+	"github.com/DNSControl/dnscontrol/v5/pkg/txtutil"
 )
 
 // MostCommonTTL returns the most common TTL in a set of records. If there is
@@ -103,20 +102,13 @@ func (z *ZoneGenData) generateZoneFileHelper(w io.Writer) error {
 		}
 	}
 	for i, rr := range z.Records {
-		// Fake types are commented out.
-		prefix := ""
-		_, ok := dnsv1.StringToType[rr.Type]
-		if !ok {
-			prefix = ";"
+		// label
+		nameShort := txtutil.StripZone(rr.Name, z.Origin)
+		if i > 0 && nameShort == nameShortPrevious {
+			nameShort = ""
+		} else {
+			nameShortPrevious = nameShort
 		}
-
-		// name
-		nameShort := rr.Name
-		name := nameShort
-		if (prefix == "") && (i > 0 && nameShort == nameShortPrevious) {
-			name = ""
-		}
-		nameShortPrevious = nameShort
 
 		// ttl
 		ttl := ""
@@ -130,8 +122,8 @@ func (z *ZoneGenData) generateZoneFileHelper(w io.Writer) error {
 			typeStr = rr.UnknownTypeName
 		}
 
-		// the remaining line
-		target := rr.GetTargetCombinedFunc(txtutil.EncodeQuoted)
+		// target
+		target := rr.GetRDATA().String()
 
 		// comment
 		comment := ""
@@ -155,8 +147,8 @@ func (z *ZoneGenData) generateZoneFileHelper(w io.Writer) error {
 			comment = " ;" + comment
 		}
 
-		fmt.Fprintf(w, "%s%s%s\n",
-			prefix, FormatLine([]int{10, 5, 2, 5, 0}, []string{name, ttl, "IN", typeStr, target}), comment)
+		fmt.Fprintf(w, "%s%s\n",
+			FormatLine([]int{10, 5, 2, 5, 0}, []string{nameShort, ttl, "IN", typeStr, target}), comment)
 	}
 	return nil
 }
