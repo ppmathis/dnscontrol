@@ -48,9 +48,14 @@ var features = providers.DocumentationNotes{
 }
 
 type edgeDNSProvider struct {
+	observer   providers.ConversionObserver
 	contractID string
 	groupID    string
 	client     dns.DNS
+}
+
+func (a *edgeDNSProvider) SetConversionObserver(observer providers.ConversionObserver) {
+	a.observer = observer
 }
 
 func init() {
