@@ -2167,14 +2167,14 @@ function DKIM_BUILDER(value) {
 // version: The DMARC version, by default DMARC1 (optional)
 // policy: The DMARC policy (p=), must be one of 'none', 'quarantine', 'reject'
 // subdomainPolicy: The DMARC policy for subdomains (sp=), must be one of 'none', 'quarantine', 'reject' (optional)
+// nonexistentSubdomainPolicy: The DMARC policy for nonexistent subdomains (np=), must be one of 'none', 'quarantine', 'reject' (optional)
 // alignmentSPF: 'strict'/'s' or 'relaxed'/'r' alignment for SPF (aspf=, default: 'r')
 // alignmentDKIM: 'strict'/'s' or 'relaxed'/'r' alignment for DKIM (adkim=, default: 'r')
-// percent: Number between 0 and 100, percentage for which policies are applied (pct=, default: 100)
 // rua: Array of aggregate report targets (optional)
 // ruf: Array of failure report targets (optional)
+// publicSuffixDomain: 'y', 'n', or 'u' indicates whether the domain is a Public Suffix Domain (`psd=`, default='u')
+// testMode: 'y' or 'n' DMARC policy test mode dictates whether p, sp, or np policy tags are applied (`t=`, default: 'n')
 // failureOptions: Object or string; Object containing booleans SPF and DKIM, string is passed raw (fo=, default: '0')
-// failureFormat: Format in which failure reports are requested (rf=, default: 'afrf')
-// reportInterval: Interval in which reports are requested (ri=)
 // ttl: Input for TTL method
 function DMARC_BUILDER(value) {
     if (!value) {
@@ -2221,6 +2221,18 @@ function DMARC_BUILDER(value) {
         record.push('sp=' + value.subdomainPolicy);
     }
 
+    // Nonexistent-Subdomain policy
+    if (
+        !value.nonexistentSubdomainPolicy === 'none' ||
+        !value.nonexistentSubdomainPolicy === 'quarantine' ||
+        !value.nonexistentSubdomainPolicy === 'reject'
+    ) {
+        throw 'Invalid DMARC nonexistent-subdomain policy';
+    }
+    if (value.subdomainPolicy) {
+        record.push('np=' + value.subdomainPolicy);
+    }
+
     // Alignment DKIM
     if (value.alignmentDKIM) {
         switch (value.alignmentDKIM) {
@@ -2260,6 +2272,7 @@ function DMARC_BUILDER(value) {
     // Percentage
     if (value.percent) {
         record.push('pct=' + value.percent);
+        console.log('WARNING: DMARC pct tag depracated.');
     }
 
     // Aggregate reports
@@ -2297,6 +2310,7 @@ function DMARC_BUILDER(value) {
     // Failure report format
     if (value.ruf && value.failureFormat) {
         record.push('rf=' + value.failureFormat);
+        console.log('WARNING: DMARC rf tag depracated.');
     }
 
     // Report interval
@@ -2306,6 +2320,30 @@ function DMARC_BUILDER(value) {
         }
 
         record.push('ri=' + value.reportInterval);
+        console.log('WARNING: DMARC ri tag depracated.');
+    }
+
+    // Public Suffix Domain
+    if (value.publicSuffixDomain) {
+        if (
+            !value.publicSuffixDomain === 'u' ||
+            !value.publicSuffixDomain === 'y' ||
+            !value.publicSuffixDomain === 'n'
+        ) {
+            throw 'Invalid public-suffix-domain tag';
+        }
+
+        record.push('psd=' + value.publicSuffixDomain);
+    }
+
+    // Test mode
+
+    if (value.testMode) {
+        if (!value.testMode === 'y' || !value.testMode === 'n') {
+            throw 'Invalid test-mode tag';
+        }
+
+        record.push('t=' + value.testMode);
     }
 
     if (value.ttl) {
