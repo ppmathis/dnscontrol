@@ -9,7 +9,6 @@ Useful refactoring projects. Please feel free to pick up any of these.
 
 * I don't think the metadata "orig_custom_type" is used any more. We store to it but don't use it.
 
-
 ## Rewrites needed
 
 * PTR() "magic" should be reworked as a builder called PTR(). It will be much more
@@ -24,6 +23,9 @@ of being some in LabelFromDnsconfigjs() and other places.
 
 * pkg/normalize/validate.go has half of the Transform code, the other half is in pkg/transform.  An easy thing would be to move the part of pkg/normalize/validate.go and validate_test.go into pkg/normalize/transform{,_test}.go.  The more difficult thing would be to move all or most of the code to pkg/transform.
 
+* models/record.go FixPostion has an easy TODO.
+
+* models/t_txt.go has an some easy FIXMEs.
 
 ## Bad decisions to reverse
 
@@ -34,8 +36,11 @@ something that is both a Reg and a DSP.
 
 * models.SetLabel() should be removed (it's only used in a few places) or enhanced to also create the .NameUnicode/.NameFQDNUnicode fields. Then de-duplicate the code that does this for NewRecordConfig().
 
+* deSEC: BUG: It mutates RecordConfigs, which will create problems if the same zone is sent to multiple providers.
+
 
 ## Actual new features:
 
 * Handle "unknown types". dnsv2 has a way to managing unknown types. Investigate it and replace the half-written version (see rc.UnknownTypeName)
 
+* pkg/diff2/analyze.go: Smarter diffs. Diffs could just show which fields changed. For example, if just the preference of an MX record changes, show "old -> new" just for the priority.
